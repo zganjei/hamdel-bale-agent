@@ -19,7 +19,7 @@ class EvidenceTests(unittest.TestCase):
             p=Path(d)/'media/a.jpg';p.write_bytes(b'same content')
             with main.db() as c:
                 for n in (1,2):
-                    c.execute("INSERT INTO messages(chat,id,date,text,kind,file_id,filename,status,path) VALUES(123,?,1,'','photo',?,'a.jpg','saved','media/a.jpg')",(n,str(n)))
+                    c.execute("INSERT INTO messages(chat,id,date,text,kind,file_id,filename,status,path,source_username) VALUES(123,?,1,'','photo',?,'a.jpg','saved','media/a.jpg',?)",(n,str(n),main.ARCHIVE_SENDER))
             with patch.object(media_reader,'analyze',return_value=('One image','visible classroom')) as analyze:
                 self.assertTrue(main.process_media());self.assertTrue(main.process_media())
                 self.assertFalse(main.process_media());self.assertEqual(analyze.call_count,1)
@@ -35,7 +35,7 @@ class EvidenceTests(unittest.TestCase):
             main.init();main.set_setting('chat_id',123)
             (Path(d)/'media/a.jpg').write_bytes(b'bad image')
             with main.db() as c:
-                c.execute("INSERT INTO messages(chat,id,date,text,kind,file_id,filename,status,path) VALUES(123,1,1,'','photo','f','a.jpg','saved','media/a.jpg')")
+                c.execute("INSERT INTO messages(chat,id,date,text,kind,file_id,filename,status,path,source_username) VALUES(123,1,1,'','photo','f','a.jpg','saved','media/a.jpg',?)",(main.ARCHIVE_SENDER,))
             with patch.object(media_reader,'analyze',side_effect=RuntimeError('failure')):
                 main.process_media();self.assertFalse(main.process_media())
             with patch.object(agent_bridge,'reply',side_effect=lambda chat,question,context,jobid:context):
