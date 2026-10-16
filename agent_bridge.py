@@ -111,10 +111,12 @@ def callback(cb,updateid):
         if v and v['status']=='pending':
             try:
                 mid=int(v['source'].rsplit(':',1)[-1])
+                # Private Bale voices go into speech_jobs (not the group archive).
+                # Read the original unedited ASR there, not the missing messages row.
                 with main.db() as db:
-                    row=db.execute('SELECT text FROM messages WHERE chat=? AND id=?',
+                    row=db.execute('SELECT transcript FROM speech_jobs WHERE chat=? AND id=?',
                                    (chat,mid)).fetchone()
-                raw=row['text'] if row else ''
+                raw=row['transcript'] if row else ''
             except (ValueError,TypeError):
                 raw=''
             main.send(chat,'🔎 متن خام Whisper:\n\n'+(raw[:3500] or 'متن خام در آرشیو پیدا نشد.'))

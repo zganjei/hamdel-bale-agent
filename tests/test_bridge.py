@@ -34,6 +34,17 @@ class BridgeTests(unittest.TestCase):
   with main.db() as c:
    self.assertEqual(c.execute('select count(*) from speech_jobs').fetchone()[0],0)
    self.assertEqual(c.execute('select kind from messages where chat=99 and id=61').fetchone()[0],'voice')
+ def test_private_voice_raw_uses_original_transcript(self):
+  with main.db() as c:
+   c.execute("INSERT INTO speech_jobs(chat,id,file_id,filename,size,duration,caption,reply,status,transcript,created) VALUES(42,17,'file','a.ogg',10,3,'',1,'done','متن خام از صدای بله',1)")
+  with patch.object(main,'api') as api:
+   agent_bridge.voice_ready(42,17,'متن خام از صدای بله',suggested='متن ویراسته')
+   data=api.call_args.args[1]['reply_markup']['inline_keyboard'][1][0]['callback_data']
+   with patch.object(main,'send') as send:
+    agent_bridge.callback({'id':'cb','from':{'id':42},
+       'message':{'chat':{'id':42}},'data':data},20)
+    self.assertIn('متن خام از صدای بله',send.call_args.args[1])
+
  def test_private_photo_queued_without_blocking_poller(self):
   message={'message_id':5,'chat':{'id':42,'type':'private'},'from':{'id':42},'photo':[{'file_id':'example','file_size':100}]}
   main.handle({'update_id':11,'message':message})
