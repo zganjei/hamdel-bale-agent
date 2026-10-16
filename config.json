@@ -9,5 +9,7 @@
   "speech_max_seconds": 600,
   "speech_chunk_seconds": 26,
   "speech_timeout": 600,
-  "speech_threads": 1
+  "speech_threads": 1,
+  "speech_dual_pass": true,
+  "speech_dual_pass_max_seconds": 90
 }

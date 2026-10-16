@@ -80,8 +80,8 @@ INPUT JSON:
             result['text']+='\n\nساخت تصویر این بار کامل نشد؛ متن آماده است. می‌توانی دوباره درخواست ساخت پوستر بدهی.'
     return result['text'][:10000],image
 
-def transcribe(path):
+def transcribe(path, *, with_alternatives=False):
     from hamdel.speech import transcribe as recognize
     binary=ROOT/'tools/whisper-cli'
     if not binary.exists():binary=BASE/'bin/whisper-cli'
-    return recognize(path,ROOT,binary)
+    return recognize(path,ROOT,binary,with_alternatives=with_alternatives)

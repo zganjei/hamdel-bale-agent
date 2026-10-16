@@ -124,6 +124,67 @@ class CloudflareTests(unittest.TestCase):
             with patch('multimodal.codex',return_value={'text':candidate}):
                 self.assertEqual(polish_transcript_with_codex(raw,Path(d)),raw)
 
+    def test_dual_pass_uses_two_distinct_decoding_hypotheses(self):
+        from hamdel.speech import cloudflare_free_transcribe
+        decoded = []
+        def fake_process(cmd, **kwargs):
+            if cmd[0]=="ffprobe":
+                return type("Result",(),{"stdout":"5.0"})()
+            if "-f" in cmd and "null" in cmd:
+                return type("Result",(),{"stderr":""})()
+            Path(cmd[-1]).write_bytes(b"fake-valid-mp3")
+            return type("Result",(),{"stderr":""})()
+        def fake_url(request, timeout):
+            data=json.loads(request.data)
+            decoded.append(data)
+            result="این ساختمان قدیمیه" if len(decoded)==1 else "این ساختمون خیلی قدیمیه"
+            return io.BytesIO(json.dumps({"success":True,"result":{"text":result}}).encode())
+        with tempfile.TemporaryDirectory() as d, patch.dict("os.environ",ENV):
+            p=Path(d)/"voice.opus";p.write_bytes(b"opus")
+            with patch("hamdel.speech.subprocess.run", side_effect=fake_process):
+                with patch("hamdel.speech.urllib.request.urlopen", side_effect=fake_url):
+                    a,b=cloudflare_free_transcribe(p,{"speech_max_seconds":600,
+                        "speech_chunk_seconds":26,"speech_dual_pass":True,
+                        "speech_dual_pass_max_seconds":90},return_alternatives=True)
+        self.assertEqual((a,b),("این ساختمان قدیمیه","این ساختمون خیلی قدیمیه"))
+        self.assertEqual(len(decoded),2)
+        self.assertTrue(decoded[0]["condition_on_previous_text"])
+        self.assertFalse(decoded[1]["condition_on_previous_text"])
+        self.assertTrue(decoded[0]["vad_filter"])
+        self.assertFalse(decoded[1]["vad_filter"])
+
+    def test_dual_pass_failure_preserves_original(self):
+        from hamdel.speech import cloudflare_free_transcribe
+        def fake_process(cmd, **kwargs):
+            if cmd[0]=="ffprobe":return type("Result",(),{"stdout":"4"})()
+            if "-f" in cmd and "null" in cmd:
+                return type("Result",(),{"stderr":""})()
+            Path(cmd[-1]).write_bytes(b"fake-mp3")
+        with tempfile.TemporaryDirectory() as d,patch.dict("os.environ",ENV):
+            p=Path(d)/"voice.ogg";p.write_bytes(b"opus")
+            first=io.BytesIO(json.dumps({"success":True,"result":{"text":"متن اصلی"}}).encode())
+            from urllib.error import HTTPError
+            with patch("hamdel.speech.subprocess.run",side_effect=fake_process):
+                with patch("hamdel.speech.urllib.request.urlopen",side_effect=[
+                    first,HTTPError("https://cloudflare.invalid",429,"quota",{},None)]):
+                    a,b=cloudflare_free_transcribe(p,{"speech_max_seconds":600,
+                        "speech_dual_pass":True},return_alternatives=True)
+        self.assertEqual((a,b),("متن اصلی",""))
+
+    def test_codex_gets_both_asr_guesses_for_persian(self):
+        from hamdel.speech import polish_transcript_with_codex
+        raw="یک ساختمان خیلی قدیمیه و برای کارهای فرهنگی و آموزشی استفاده می‌شود"
+        other="ساختمون قدیمیه و برای فعالیت‌های فرهنگی استفاده می‌شه"
+        captured=[]
+        def fake_codex(prompt, work):
+            captured.append(prompt)
+            return {"text":raw}
+        with tempfile.TemporaryDirectory() as d:
+            with patch("multimodal.codex",side_effect=fake_codex):
+                self.assertEqual(polish_transcript_with_codex(raw,Path(d),alternative=other),raw)
+        self.assertIn(other,captured[0])
+        self.assertIn(raw,captured[0])
+
     def test_free_plan_quota_failure_is_safe(self):
         def fake_process(cmd, **kwargs):
             if cmd[0] == "ffprobe":return type("Result", (), {"stdout": "5"})()

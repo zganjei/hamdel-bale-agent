@@ -257,11 +257,11 @@ def process_speech():
         if stored and stored['path']:path=stored['path']
         else:
             path,_=download_one(row)
-        transcript=multimodal.transcribe(ROOT/path)
+        transcript, alternative=multimodal.transcribe(ROOT/path,with_alternatives=True)
         suggestion=transcript
         try:
             from hamdel.speech import polish_transcript_with_codex
-            suggestion=polish_transcript_with_codex(transcript,ROOT)
+            suggestion=polish_transcript_with_codex(transcript,ROOT,alternative=alternative)
         except Exception:
             logging.warning('Codex speech proofreading unavailable; original preserved')
         note='[متن خودکار صوت؛ اسم‌ها و مبلغ‌ها نیازمند بازبینی هستند]\n'+transcript
