@@ -9,20 +9,20 @@ from pathlib import Path
 token=os.environ.get('LIARA_API_TOKEN','').strip()
 if not token:raise SystemExit('LIARA_API_TOKEN is required')
 expected=json.loads(Path('release.json').read_text())['commit']
+speech_required=json.loads(Path('config.json').read_text()).get('speech_provider')=='cloudflare_free'
 subprocess.run(['liara','deploy','--app','hamdel-reporter','--api-token',token,
                 '--no-app-logs','--message','GitHub '+expected[:12]],check=True)
 for attempt in range(90):
     try:
         with urllib.request.urlopen('https://hamdel-reporter.liara.run/health',timeout=10) as r:
             health=json.load(r)
-        from hamdel.config import settings
-        speech_required = settings().get('speech_provider') == 'cloudflare_free'
         if (health.get('release') == expected and health.get('state') == 'running'
                 and (not speech_required or health.get('speech_state') == 'ready')):
             print('Verified running commit',expected)
             break
-    except Exception:
-        pass
+    except (OSError, ValueError, TimeoutError) as exc:
+        if attempt % 5 == 0:
+            print('Health check transport error:', type(exc).__name__, flush=True)
     if attempt % 5 == 0:
         safe_state = health if isinstance(locals().get('health'), dict) else {}
         print('Waiting for running health check:',
