@@ -29,7 +29,7 @@ class BridgeTests(unittest.TestCase):
   with main.db() as c:self.assertEqual(c.execute('select count(*) from speech_jobs').fetchone()[0],1)
 
  def test_group_voice_archived_without_transcription_or_external_processing(self):
-  voice={'message_id':61,'chat':{'id':99,'type':'group'},'from':{'id':123},'voice':{'file_id':'sample','file_size':100,'duration':4}}
+  voice={'message_id':61,'chat':{'id':99,'type':'group'},'from':{'id':123,'username':'motahari58'},'voice':{'file_id':'sample','file_size':100,'duration':4}}
   main.handle({'update_id':42,'message':voice})
   with main.db() as c:
    self.assertEqual(c.execute('select count(*) from speech_jobs').fetchone()[0],0)
@@ -55,6 +55,63 @@ class BridgeTests(unittest.TestCase):
    action=msg['reply_markup']['inline_keyboard'][0][0]['callback_data']
    vid=action.split(':',1)[1]
    self.assertEqual(agent_bridge.store().get_voice(vid,42)['transcript'],'متن خواناتر')
+
+
+ def test_only_target_user_archived(self):
+  other={'message_id':64,'chat':{'id':99,'type':'group'},'from':{'id':77,'username':'someone_else'},'text':'other'}
+  main.handle({'update_id':110,'message':other})
+  with main.db() as c:
+   self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],0)
+   self.assertEqual(c.execute('SELECT count(*) FROM updates').fetchone()[0],0)
+  target={'message_id':65,'chat':{'id':99,'type':'group'},'from':{'id':58,'username':'Motahari58'},'text':'گزارش همدل'}
+  main.handle({'update_id':111,'message':target})
+  with main.db() as c:
+   row=c.execute('SELECT source_username,source_id,source_kind,text FROM messages').fetchone()
+   self.assertEqual(tuple(row),('motahari58',58,'user','گزارش همدل'))
+   self.assertNotIn('گزارش همدل',c.execute('SELECT payload FROM updates').fetchone()[0])
+
+ def test_known_id_continues_without_username(self):
+  for mid, sender in [(70,{'id':58,'username':'motahari58'}),(71,{'id':58})]:
+   main.handle({'update_id':mid,'message':{'message_id':mid,'chat':{'id':99,'type':'group'},'from':sender,'text':'test'}})
+  with main.db() as c:self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],2)
+
+ def test_forwarded_messages_not_archived(self):
+  m={'message_id':80,'chat':{'id':99,'type':'group'},'from':{'id':999,'username':'someone_else'},
+     'forward_from':{'id':58,'username':'motahari58'},
+     'reply_to_message':{'from':{'id':58,'username':'motahari58'}},'text':'forward'}
+  main.handle({'update_id':180,'message':m})
+  with main.db() as c:self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],0)
+
+ def test_sender_chat_overrides_false_from(self):
+  m={'message_id':90,'chat':{'id':99,'type':'group'},'from':{'id':999},
+     'sender_chat':{'id':1001,'username':'motahari58'},'text':'channel'}
+  main.handle({'update_id':190,'message':m})
+  m['message_id']=91;m['sender_chat']={'id':1002,'username':'unrelated'}
+  m['from']={'id':58,'username':'motahari58'}
+  main.handle({'update_id':191,'message':m})
+  with main.db() as c:
+   self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],1)
+   self.assertEqual(c.execute('SELECT source_kind FROM messages').fetchone()[0],'chat')
+
+ def test_legacy_rows_preserved_but_hidden(self):
+  with main.db() as c:c.execute("INSERT INTO messages(chat,id,date,text,kind,status) VALUES(99,901,1,'old','text','text')")
+  m={'message_id':902,'chat':{'id':99,'type':'group'},'from':{'id':58,'username':'motahari58'},'text':'new'}
+  main.handle({'update_id':202,'message':m})
+  with patch.object(agent_bridge,'reply',return_value=('ok','')) as stub:
+   main.answer_ai(42,'new',200)
+  context=stub.call_args.args[2]
+  self.assertEqual(context['total_archived'],1)
+  self.assertEqual([r['id'] for r in context['archive_index']],[902])
+  with main.db() as c:self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],2)
+
+ def test_owner_mention_still_processed_without_archiving(self):
+  m={'message_id':99,'chat':{'id':99,'type':'group'},'from':{'id':42,'username':'someone_else'},
+     'text':'@hamdel_report_bot سلام'}
+  main.handle({'update_id':209,'message':m})
+  with main.db() as c:
+   self.assertEqual(c.execute('SELECT count(*) FROM messages').fetchone()[0],0)
+   self.assertEqual(c.execute('SELECT count(*) FROM ai_jobs').fetchone()[0],1)
+
 
  def test_private_photo_queued_without_blocking_poller(self):
   message={'message_id':5,'chat':{'id':42,'type':'private'},'from':{'id':42},'photo':[{'file_id':'example','file_size':100}]}

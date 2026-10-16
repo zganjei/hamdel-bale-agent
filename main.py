@@ -17,13 +17,14 @@ import time
 import urllib.request
 import urllib.error
 import zipfile
+from hamdel.config import settings as runtime_settings
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(os.getenv('DATA_DIR', 'data'))
 TOKEN = os.getenv('BALE_BOT_TOKEN', '')
 MAX_FILE = 20 * 1024 * 1024
 API = 'https://tapi.bale.ai'
-ARCHIVE_SENDER = 'motahari58'
+ARCHIVE_SENDER = str(runtime_settings().get('archive_sender_username','motahari58')).strip().lstrip('@').casefold()
 STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 

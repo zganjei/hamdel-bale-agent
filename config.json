@@ -11,5 +11,6 @@
   "speech_timeout": 600,
   "speech_threads": 1,
   "speech_dual_pass": true,
-  "speech_dual_pass_max_seconds": 90
+  "speech_dual_pass_max_seconds": 90,
+  "archive_sender_username": "motahari58"
 }
