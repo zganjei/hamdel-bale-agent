@@ -23,7 +23,7 @@ ROOT = Path(os.getenv('DATA_DIR', 'data'))
 TOKEN = os.getenv('BALE_BOT_TOKEN', '')
 MAX_FILE = 20 * 1024 * 1024
 API = 'https://tapi.bale.ai'
-STATE = {'state': 'starting', 'last_poll': 0}
+STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def db():
@@ -453,6 +453,23 @@ def poll():
         except Exception:
             STATE['state']='retrying'; logging.warning('Polling retry; details suppressed'); time.sleep(10)
 
+def probe_speech_readiness():
+    """Prove the running process can call Workers AI; never send user recordings."""
+    from hamdel.config import settings
+    if settings().get('speech_provider') != 'cloudflare_free':
+        STATE['speech_state'] = 'disabled'
+        return
+    if not os.environ.get('CLOUDFLARE_ACCOUNT_ID') or not os.environ.get('CLOUDFLARE_API_TOKEN'):
+        STATE['speech_state'] = 'missing_credentials'
+        return
+    try:
+        from scripts.check_cloudflare_speech import main as check_cloudflare
+        STATE['speech_state'] = 'ready' if check_cloudflare() == 0 else 'api_error'
+    except Exception:
+        STATE['speech_state'] = 'api_error'
+        logging.warning('Speech readiness probe failed; no credentials logged')
+
+
 class Health(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path not in ('/','/health'):
@@ -466,6 +483,7 @@ if __name__=='__main__':
     import sys
     sys.modules['main']=sys.modules[__name__]
     init()
+    threading.Thread(target=probe_speech_readiness,daemon=True).start()
     threading.Thread(target=media_worker,daemon=True).start()
     threading.Thread(target=ai_worker,daemon=True).start()
     threading.Thread(target=poll,daemon=True).start()

@@ -15,11 +15,14 @@ for attempt in range(30):
     try:
         with urllib.request.urlopen('https://hamdel-reporter.liara.run/health',timeout=10) as r:
             health=json.load(r)
-        if health.get('release')==expected and health.get('state')=='running':
+        from hamdel.config import settings
+        speech_required = settings().get('speech_provider') == 'cloudflare_free'
+        if (health.get('release') == expected and health.get('state') == 'running'
+                and (not speech_required or health.get('speech_state') == 'ready')):
             print('Verified running commit',expected)
             break
     except Exception:
         pass
     if attempt%5==0:print('Waiting for running health check',flush=True)
     time.sleep(2)
-else:raise SystemExit('Deployment did not become healthy at the expected commit')
+else:raise SystemExit('Deployment did not become healthy with working Cloudflare speech at the expected commit')
