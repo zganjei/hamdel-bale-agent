@@ -47,6 +47,26 @@ class CloudflareTests(unittest.TestCase):
         self.assertEqual(text,"کمک به خانواده")
         self.assertEqual(len(calls),1)
 
+
+    def test_http_400_exposes_numeric_code_without_sensitive_body(self):
+        import io
+        from hamdel.speech import cloudflare_free_transcribe
+        from urllib.error import HTTPError
+        def fake_process(cmd, **kwargs):
+            if cmd[0] == "ffprobe":return type("Result", (), {"stdout":"2"})()
+            Path(cmd[-1]).write_bytes(b"mp3-data")
+        response=io.BytesIO(json.dumps({"errors":[{"code":5006,"message":"private text"}]}).encode())
+        with tempfile.TemporaryDirectory() as d, patch.dict("os.environ",ENV):
+            path=Path(d)/"voice.ogg";path.write_bytes(b"ogg-data")
+            with patch("hamdel.speech.subprocess.run",side_effect=fake_process):
+                with patch("hamdel.speech.urllib.request.urlopen",
+                           side_effect=HTTPError("https://cloudflare.invalid",400,"bad request",{},response)):
+                    with self.assertRaises(SpeechUnavailable) as ctx:
+                        cloudflare_free_transcribe(path,{"speech_max_seconds":600,"speech_chunk_seconds":45})
+        self.assertIn("HTTP 400",str(ctx.exception))
+        self.assertIn("5006",str(ctx.exception))
+        self.assertNotIn("private text",str(ctx.exception))
+
     def test_free_plan_quota_failure_is_safe(self):
         def fake_process(cmd, **kwargs):
             if cmd[0] == "ffprobe":return type("Result", (), {"stdout": "5"})()

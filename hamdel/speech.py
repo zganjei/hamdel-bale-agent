@@ -146,10 +146,25 @@ def cloudflare_free_transcribe(path, cfg):
                 with urllib.request.urlopen(req, timeout=120) as response:
                     obj = json.load(response)
             except HTTPError as exc:
-                # Never print Cloudflare's error body, which can reveal request details.
-                if exc.code in (402, 403, 429):
-                    raise SpeechUnavailable("سهمیه یا مجوز سرویس رایگان Cloudflare در دسترس نیست؛ هیچ هزینهٔ اضافه‌ای فعال نمی‌شود.") from None
-                raise SpeechUnavailable("سرویس تبدیل صوت پاسخ معتبر نداد؛ دوباره امتحان کن.") from None
+                # Only report status and a numeric vendor error code: error text
+                # may contain sensitive request content, so never display it.
+                vendor_code = ""
+                try:
+                    error_body = json.loads(exc.read(2048))
+                    codes = [x.get("code") for x in error_body.get("errors", [])
+                             if isinstance(x, dict)]
+                    vendor_code = next((str(code) for code in codes
+                                        if isinstance(code, int) and not isinstance(code, bool)), "")
+                except (OSError, ValueError, TypeError):
+                    pass
+                diagnostic = f"HTTP {exc.code}" + (f" / Cloudflare {vendor_code}" if vendor_code else "")
+                if exc.code in (401, 403):
+                    raise SpeechUnavailable(f"Cloudflare مجوز API را نپذیرفت ({diagnostic}). توکن و دسترسی Workers AI را بررسی کن.") from None
+                if exc.code in (402, 429):
+                    raise SpeechUnavailable(f"سهمیهٔ رایگان Cloudflare در دسترس نیست ({diagnostic}). هیچ هزینهٔ اضافه‌ای فعال نمی‌شود.") from None
+                if exc.code in (400, 404, 413, 415, 422):
+                    raise SpeechUnavailable(f"Cloudflare فایل یا درخواست صوت را نپذیرفت ({diagnostic}). فایل محفوظ است.") from None
+                raise SpeechUnavailable(f"سرویس صوت Cloudflare خطای موقت یا ناشناخته داد ({diagnostic}). فایل محفوظ است.") from None
             except (OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
                 raise SpeechUnavailable("اتصال امن به سرویس تبدیل صوت برقرار نشد؛ فایل محفوظ است.") from exc
             result = obj.get("result") if isinstance(obj, dict) else None
