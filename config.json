@@ -4,10 +4,10 @@
   "agent_timeout": 240,
   "archive_result_limit": 6,
   "artifact_max_bytes": 18874368,
-  "speech_provider": "disabled",
+  "speech_provider": "cloudflare_free",
   "speech_model_file": "ggml-small-q5_1.bin",
-  "speech_max_seconds": 120,
-  "speech_chunk_seconds": 15,
+  "speech_max_seconds": 600,
+  "speech_chunk_seconds": 45,
   "speech_timeout": 600,
   "speech_threads": 1
 }
