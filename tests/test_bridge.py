@@ -27,6 +27,13 @@ class BridgeTests(unittest.TestCase):
   message={'message_id':5,'chat':{'id':42,'type':'private'},'from':{'id':42},'document':{'file_id':'example','file_name':'note.opus','file_size':100}}
   main.handle({'update_id':11,'message':message})
   with main.db() as c:self.assertEqual(c.execute('select count(*) from speech_jobs').fetchone()[0],1)
+
+ def test_group_voice_archived_without_transcription_or_external_processing(self):
+  voice={'message_id':61,'chat':{'id':99,'type':'group'},'from':{'id':123},'voice':{'file_id':'sample','file_size':100,'duration':4}}
+  main.handle({'update_id':42,'message':voice})
+  with main.db() as c:
+   self.assertEqual(c.execute('select count(*) from speech_jobs').fetchone()[0],0)
+   self.assertEqual(c.execute('select kind from messages where chat=99 and id=61').fetchone()[0],'voice')
  def test_private_photo_queued_without_blocking_poller(self):
   message={'message_id':5,'chat':{'id':42,'type':'private'},'from':{'id':42},'photo':[{'file_id':'example','file_size':100}]}
   main.handle({'update_id':11,'message':message})

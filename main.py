@@ -52,6 +52,8 @@ def init():
             status TEXT, path TEXT, attempts INTEGER DEFAULT 0, retry_at INTEGER DEFAULT 0,
             PRIMARY KEY(chat,id));
         ''')
+        # Group voice messages are archived but must not be transmitted to third-party ASR by default.
+        c.execute("UPDATE speech_jobs SET status='archived_only' WHERE reply=0 AND status IN ('pending','processing')")
         columns={r[1] for r in c.execute('PRAGMA table_info(ai_jobs)')}
         if 'artifact' not in columns: c.execute("ALTER TABLE ai_jobs ADD COLUMN artifact TEXT DEFAULT ''")
         columns={r[1] for r in c.execute('PRAGMA table_info(speech_jobs)')}
@@ -243,7 +245,7 @@ def enqueue_speech(m, reply):
 def process_speech():
     import multimodal
     with db() as c:
-        row=c.execute("SELECT * FROM speech_jobs WHERE status='pending' ORDER BY created,id LIMIT 1").fetchone()
+        row=c.execute("SELECT * FROM speech_jobs WHERE status='pending' AND reply=1 ORDER BY created,id LIMIT 1").fetchone()
         if not row:return False
         media=c.execute('SELECT status FROM messages WHERE chat=? AND id=?',(row['chat'],row['id'])).fetchone()
         if media and media['status']=='pending':return False
@@ -281,7 +283,7 @@ def ai_worker():
         try:
             with db() as c:
                 row=c.execute("SELECT * FROM ai_jobs WHERE status IN ('pending','ready') ORDER BY created,id LIMIT 1").fetchone()
-                voice=c.execute("SELECT created FROM speech_jobs WHERE status='pending' ORDER BY created,id LIMIT 1").fetchone()
+                voice=c.execute("SELECT created FROM speech_jobs WHERE status='pending' AND reply=1 ORDER BY created,id LIMIT 1").fetchone()
                 voice_first=voice and (not row or voice['created']<=row['created'])
                 if row and not voice_first and row['status']=='pending':
                     c.execute("UPDATE ai_jobs SET status='generating' WHERE id=?",(row['id'],))
@@ -372,7 +374,7 @@ def handle(u):
         c.execute('INSERT OR REPLACE INTO messages(chat,id,date,text,kind,file_id,filename,size,media_group,status,path) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
             (cid,m['message_id'],m.get('date',int(time.time())),text,kind,file_id,name,size,m.get('media_group_id',''),status,path))
         c.execute('INSERT INTO updates VALUES(?,?,?)',(mid,json.dumps(u,ensure_ascii=False),int(time.time())))
-    if kind in ('voice','audio') and not u.get('edited_message'):enqueue_speech(m,False)
+    # Non-addressed group voice is archived only; it is never sent to Cloudflare.
 
 class TooLarge(Exception): pass
 
