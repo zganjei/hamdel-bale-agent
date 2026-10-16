@@ -95,6 +95,10 @@ def cloudflare_free_transcribe(path, cfg):
 
     account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
     token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if token[:1] in ("'", '"') and token[-1:] == token[:1]:
+        token = token[1:-1].strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
     if not token or len(account) != 32 or any(ch not in "0123456789abcdefABCDEF" for ch in account):
         raise SpeechUnavailable("سرویس رایگان صوت هنوز به حساب Cloudflare متصل نشده است؛ فایل محفوظ است.")
     path = Path(path)

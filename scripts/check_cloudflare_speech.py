@@ -62,12 +62,32 @@ def attempt(url, token, audio, minimal=False):
 def main():
     account=os.environ.get("CLOUDFLARE_ACCOUNT_ID","").strip()
     token=os.environ.get("CLOUDFLARE_API_TOKEN","").strip()
+    # Accept copied labels/quotes without publishing the token or its size.
+    if token[:1] in ("'", '"') and token[-1:] == token[:1]:
+        token = token[1:-1].strip()
+        print("Cloudflare token: removed surrounding quotes")
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+        print("Cloudflare token: removed duplicated Bearer prefix")
     if not account or not token:
         print("Cloudflare speech smoke check skipped: credentials not configured")
         return 0
     if len(account)!=32 or any(c not in "0123456789abcdefABCDEF" for c in account):
         print("Cloudflare: invalid Account ID format (expect 32 hexadecimal characters)")
         return 1
+    verify_req = urllib.request.Request(
+        "https://api.cloudflare.com/client/v4/user/tokens/verify",
+        headers={"Authorization":"Bearer "+token}, method="GET")
+    try:
+        with urllib.request.urlopen(verify_req, timeout=20) as response:
+            obj=json.load(response)
+        info=obj.get("result") if isinstance(obj,dict) else {}
+        print("Cloudflare token verified:", obj.get("success") is True
+              and isinstance(info,dict) and info.get("status")=="active")
+    except HTTPError as exc:
+        print("Cloudflare token verification HTTP", exc.code, "codes", vendor_codes(exc.read(2048)))
+    except (URLError, OSError, ValueError, TimeoutError) as exc:
+        print("Cloudflare token verification unavailable:", type(exc).__name__)
     url=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/openai/whisper-large-v3-turbo"
     audio=base64.b64encode(beep_wav()).decode("ascii")
     ok,status=attempt(url,token,audio)
