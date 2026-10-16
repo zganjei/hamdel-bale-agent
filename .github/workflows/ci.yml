@@ -25,6 +25,7 @@ jobs:
           python3 - <<'PY'
           import json
           import re
+          import time
           import urllib.request
 
           try:
@@ -37,6 +38,8 @@ jobs:
                   value = str(info.get(field, 'unknown'))[:100]
                   value = re.sub(r'[^a-zA-Z0-9_.:-]', '?', value)
                   print(f'Live {field}: {value}')
+              if isinstance(info.get('last_poll'), (int, float)):
+                  print('Live poll_age_seconds: ' + str(max(0, int(time.time() - info['last_poll']))))
           except Exception as exc:
               print('Live health: unavailable (' + type(exc).__name__ + ')')
           PY
