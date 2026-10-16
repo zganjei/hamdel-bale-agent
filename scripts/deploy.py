@@ -23,6 +23,12 @@ for attempt in range(30):
             break
     except Exception:
         pass
-    if attempt%5==0:print('Waiting for running health check',flush=True)
+    if attempt % 5 == 0:
+        safe_state = health if isinstance(locals().get('health'), dict) else {}
+        print('Waiting for running health check:',
+              'app=' + str(safe_state.get('state', 'unknown'))[:30],
+              'speech=' + str(safe_state.get('speech_state', 'unknown'))[:30],
+              'issue=' + str(safe_state.get('speech_issue', 'unknown'))[:40],
+              flush=True)
     time.sleep(2)
 else:raise SystemExit('Deployment did not become healthy with working Cloudflare speech at the expected commit')

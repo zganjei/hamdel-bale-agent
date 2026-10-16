@@ -34,7 +34,7 @@ jobs:
                   info = json.load(response)
               if not isinstance(info, dict):
                   raise ValueError('Invalid health response')
-              for field in ('service', 'version', 'state', 'release'):
+              for field in ('service', 'version', 'state', 'release', 'speech_state', 'speech_issue'):
                   value = str(info.get(field, 'unknown'))[:100]
                   value = re.sub(r'[^a-zA-Z0-9_.:-]', '?', value)
                   print(f'Live {field}: {value}')

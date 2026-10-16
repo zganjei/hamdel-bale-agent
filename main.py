@@ -463,10 +463,30 @@ def probe_speech_readiness():
         STATE['speech_state'] = 'missing_credentials'
         return
     try:
+        from contextlib import redirect_stdout
+        from io import StringIO
         from scripts.check_cloudflare_speech import main as check_cloudflare
-        STATE['speech_state'] = 'ready' if check_cloudflare() == 0 else 'api_error'
-    except Exception:
+        output = StringIO()
+        with redirect_stdout(output):
+            success = check_cloudflare() == 0
+        STATE['speech_state'] = 'ready' if success else 'api_error'
+        if not success:
+            details = output.getvalue()
+            code = re.search(r'Cloudflare: HTTP ([0-9]{3})', details)
+            token_error = re.search(r'Cloudflare token verification HTTP ([0-9]{3})', details)
+            if code:
+                STATE['speech_issue'] = 'workers_ai_http_' + code.group(1)
+            elif token_error:
+                STATE['speech_issue'] = 'token_verify_http_' + token_error.group(1)
+            elif 'connectivity failure' in details or 'verification unavailable' in details:
+                STATE['speech_issue'] = 'network'
+            else:
+                STATE['speech_issue'] = 'unknown'
+        else:
+            STATE['speech_issue'] = 'none'
+    except Exception as exc:
         STATE['speech_state'] = 'api_error'
+        STATE['speech_issue'] = 'runtime_' + type(exc).__name__
         logging.warning('Speech readiness probe failed; no credentials logged')
 
 
