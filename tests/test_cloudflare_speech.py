@@ -25,6 +25,8 @@ class CloudflareTests(unittest.TestCase):
             if cmd[0] == "ffprobe":
                 return type("Result", (), {"stdout": "10.0"})()
             self.assertEqual(cmd[0], "ffmpeg")
+            if "-af" in cmd:
+                return type("Result", (), {"stderr": ""})()
             self.assertIn("libmp3lame", cmd)
             Path(cmd[-1]).write_bytes(b"mp3-data")
             return type("Result", (), {"stdout": ""})()
@@ -54,6 +56,7 @@ class CloudflareTests(unittest.TestCase):
         from urllib.error import HTTPError
         def fake_process(cmd, **kwargs):
             if cmd[0] == "ffprobe":return type("Result", (), {"stdout":"2"})()
+            if "-af" in cmd:return type("Result", (), {"stderr":""})()
             Path(cmd[-1]).write_bytes(b"mp3-data")
         response=io.BytesIO(json.dumps({"errors":[{"code":5006,"message":"private text"}]}).encode())
         with tempfile.TemporaryDirectory() as d, patch.dict("os.environ",ENV):
@@ -93,6 +96,7 @@ class CloudflareTests(unittest.TestCase):
     def test_free_plan_quota_failure_is_safe(self):
         def fake_process(cmd, **kwargs):
             if cmd[0] == "ffprobe":return type("Result", (), {"stdout": "5"})()
+            if "-af" in cmd:return type("Result", (), {"stderr":""})()
             Path(cmd[-1]).write_bytes(b"test");return None
         with tempfile.TemporaryDirectory() as d, patch.dict("os.environ", ENV):
             src=Path(d)/"voice.ogg";src.write_bytes(b"opus")

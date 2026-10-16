@@ -96,7 +96,7 @@ def speech_windows(path, duration, length=26):
             capture_output=True, text=True, timeout=45)
         for end, span in re.findall(
                 r"silence_end:\s*([0-9.]+)\s*\|\s*silence_duration:\s*([0-9.]+)",
-                probe.stderr or ""):
+                getattr(probe, "stderr", "") or ""):
             center = float(end) - float(span) / 2
             if 0 < center < duration:
                 pauses.append(center)
