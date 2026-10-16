@@ -28,6 +28,7 @@ API = 'https://tapi.bale.ai'
 ARCHIVE_SENDER = str(runtime_settings().get('archive_sender_username','motahari58')).strip().lstrip('@').casefold()
 STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
 LIVE_GROUP = RecentContext()
+STATE.update(group_updates_since_boot=0,group_last_received_at=0,group_seeded_messages=0)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def db():
@@ -397,6 +398,8 @@ def handle(u):
         else: enqueue_ai(mid,cid,text)
         return
     if str(cid)!=bound: return
+    STATE['group_updates_since_boot'] += 1
+    STATE['group_last_received_at'] = int(time.time())
     # Recent messages of all group members are retained only in RAM.
     # The permanent archive below stays restricted to @motahari58.
     LIVE_GROUP.add(cid,m)
@@ -514,6 +517,29 @@ def poll():
         except Exception:
             STATE['state']='retrying'; logging.warning('Polling retry; details suppressed'); time.sleep(10)
 
+
+def seed_live_group_once():
+    """Load only eligible, recent messages on startup; no per-question DB query."""
+    chat=setting('chat_id')
+    if not chat:
+        STATE['group_seeded_messages']=0
+        return
+    try:
+        since=int(time.time()) - 60*24*3600
+        with db() as c:
+            rows=[dict(row) for row in c.execute(
+                """SELECT id,date,text FROM messages
+                   WHERE chat=? AND source_username=? AND date>=?
+                     AND kind NOT IN ('voice','audio')
+                     AND text IS NOT NULL AND trim(text)!=''
+                   ORDER BY date DESC,id DESC LIMIT 60""",
+                (int(chat),ARCHIVE_SENDER,since)).fetchall()]
+        seeded=LIVE_GROUP.seed(chat,list(reversed(rows)))
+        STATE['group_seeded_messages']=seeded
+    except (OSError,sqlite3.Error,ValueError,TypeError):
+        STATE['group_seeded_messages']=0
+        logging.warning('Live group baseline unavailable; no message content logged')
+
 def probe_speech_readiness():
     """Prove the running process can call Workers AI; never send user recordings."""
     from hamdel.config import settings
@@ -564,6 +590,7 @@ if __name__=='__main__':
     import sys
     sys.modules['main']=sys.modules[__name__]
     init()
+    seed_live_group_once()
     threading.Thread(target=probe_speech_readiness,daemon=True).start()
     threading.Thread(target=media_worker,daemon=True).start()
     threading.Thread(target=ai_worker,daemon=True).start()

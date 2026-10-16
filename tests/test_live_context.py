@@ -43,3 +43,50 @@ class ContextTests(unittest.TestCase):
         live.add(99,{'message_id':1,'from':{'id':1},'voice':{'file_id':'x'}},now=100)
         self.assertIn('تأییدشده',live.snapshot(99,now=100)['messages'][0]['text'])
         self.assertEqual(live.snapshot(99,now=200)['messages'],[])
+
+    def test_seeded_approved_messages_survive_restart_without_per_turn_db(self):
+        from unittest.mock import patch
+        from pathlib import Path
+        import tempfile
+        import main
+        from hamdel.live_context import RecentContext
+        import time
+        now=int(time.time())
+        with tempfile.TemporaryDirectory() as d, patch.object(main,'ROOT',Path(d)):
+            with patch.object(main,'LIVE_GROUP',RecentContext()):
+                main.init()
+                main.set_setting('chat_id','99')
+                with main.db() as c:
+                    c.execute("""INSERT INTO messages
+                        (chat,id,date,text,kind,status,source_username)
+                        VALUES(99,101,?,'نیاز به کمک برای برنامه اطعام','text','text','motahari58')""",(now-100,))
+                    c.execute("""INSERT INTO messages
+                        (chat,id,date,text,kind,status,source_username)
+                        VALUES(99,102,?,'پیام غیرمجاز','text','text',NULL)""",(now-99,))
+                main.seed_live_group_once()
+                self.assertEqual(main.STATE['group_seeded_messages'],1)
+                rows=main.LIVE_GROUP.snapshot(99)['messages']
+                self.assertEqual([r['id'] for r in rows],[101])
+                self.assertEqual(rows[0]['source'],'verified_archive_seed')
+                captured=[]
+                with patch('agent_bridge.reply',side_effect=lambda chat,question,ctx,jobid:(captured.append(ctx) or ('پاسخ',''))):
+                    self.assertEqual(main.answer_ai(42,'موضوعات گروه چیست؟',99)[0],'پاسخ')
+                self.assertEqual(captured[0]['mode'],'conversation')
+                self.assertEqual(captured[0]['group_context']['messages'][0]['id'],101)
+
+    def test_live_messages_override_seed_without_duplication(self):
+        live=RecentContext()
+        now=10000000
+        live.seed(99,[{'id':5,'date':now-20,'text':'نسخه قدیمی'}],now=now)
+        live.add(99,{'message_id':5,'date':now-10,'from':{'id':58},'text':'نسخه جدید'},now=now)
+        snap=live.snapshot(99,now=now)
+        self.assertEqual(len(snap['messages']),1)
+        self.assertEqual(snap['messages'][0]['text'],'نسخه جدید')
+
+    def test_seed_expiry_only_allows_recent_records(self):
+        live=RecentContext()
+        now=10000000
+        count=live.seed(99,[{'id':1,'date':now-120*86400,'text':'خیلی قدیمی'},
+                            {'id':2,'date':now-25,'text':'جدید'}],now=now)
+        self.assertEqual(count,1)
+        self.assertEqual([r['id'] for r in live.snapshot(99,now=now)['messages']],[2])

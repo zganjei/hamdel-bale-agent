@@ -31,6 +31,7 @@ class RecentContext:
         self.limit=limit
         self.max_age=max_age
         self.items=OrderedDict()
+        self.baseline=[]
         self.lock=RLock()
 
     def add(self, chat, msg, now=None):
@@ -58,6 +59,34 @@ class RecentContext:
             self.items[key]=item
             self._prune(now)
 
+    def seed(self, chat, rows, now=None):
+        """Memory-only snapshot of previously approved durable sender messages.
+
+        This is invoked once on start, not for every user question.
+        Other group members' messages never enter the persistent baseline.
+        """
+        try: cid=int(chat)
+        except (ValueError,TypeError):return 0
+        now=int(time.time() if now is None else now)
+        initial=[]
+        for data in rows:
+            try:
+                mid=int(data['id']);stamp=int(data['date'])
+            except (KeyError,TypeError,ValueError):
+                continue
+            raw=data.get('text')
+            if not isinstance(raw,str) or not raw.strip():
+                continue
+            if not now-60*24*3600<=stamp<=now+60:
+                continue
+            text=raw.strip()[:1200]
+            initial.append({'id':mid,'date':stamp,'sender':'@motahari58',
+                            'text':text,'category_hint':category(text),
+                            'source':'verified_archive_seed'})
+        with self.lock:
+            self.baseline=[(cid,row) for row in initial[-60:]]
+        return len(initial[-60:])
+
     def _prune(self,now):
         for key,item in list(self.items.items()):
             if item['date']<now-self.max_age:self.items.pop(key,None)
@@ -69,7 +98,12 @@ class RecentContext:
         now=int(time.time() if now is None else now)
         with self.lock:
             self._prune(now)
-            rows=[dict(row) for (c,_),row in self.items.items() if c==cid]
+            live=[dict(row) for (c,_),row in self.items.items() if c==cid]
+            saved=[dict(row) for c,row in self.baseline if c==cid]
+        # Fresh in-memory messages override duplicate startup records.
+        by_id={row['id']:row for row in saved}
+        by_id.update({row['id']:row for row in live})
+        rows=sorted(by_id.values(),key=lambda r:(r['date'],r['id']))
         chosen=[];size=0
         for row in reversed(rows):
             length=len(row['text'])+len(row['sender'])+80
@@ -80,4 +114,10 @@ class RecentContext:
         tags={}
         for r in chosen:tags[r['category_hint']]=tags.get(r['category_hint'],0)+1
         return {'messages':chosen,'category_hints':tags,'complete':False,
-                'note':'فقط پیام‌های اخیر دریافت‌شده؛ حافظه موقت و ممکن است ناقص باشد.'}
+                'startup_archive_items':len(saved),
+                'live_items':len(live),
+                'note':('پیام‌های زنده محدود به موارد دریافت‌شده پس از راه‌اندازی است. '
+                        'موارد با source=verified_archive_seed از آرشیو مجاز @motahari58 '
+                        'یک بار هنگام شروع بازیابی شده‌اند؛ ممکن است چند هفته قدیمی باشند. '
+                        'پیام‌های سایر اعضا فقط در حافظهٔ زنده دیده می‌شوند. '
+                        'اگر تعداد live_items صفر است، دربارهٔ پیام‌های همهٔ گروه ادعای جامع نکن.')}
