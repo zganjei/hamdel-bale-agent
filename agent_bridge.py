@@ -82,8 +82,8 @@ def keyboard(chat,jobid):
 
 def voice_ready(chat,mid,text,suggested=None):
     import main
-    proposed = ('[ویرایش پیشنهادی Codex؛ خطای شنیداری همچنان ممکن است]\n'
-                + suggested) if suggested else text
+    # Labels belong in the UI only, never in the transcript the owner approves.
+    proposed = suggested if suggested else text
     vid=store().add_voice(f'bale:{chat}:voice:{mid}',chat,proposed)
     buttons={'inline_keyboard':[
         [{'text':'✅ متن درست است','callback_data':'voice_ok:'+vid},
@@ -91,8 +91,9 @@ def voice_ready(chat,mid,text,suggested=None):
         [{'text':'🔎 متن خام Whisper','callback_data':'voice_raw:'+vid}]
     ]}
     main.api('sendMessage',{'chat_id':chat,
-        'text':'🎧 متن پیشنهادی صوت؛ هنوز اجرا نشده:\n\n'+proposed[:3300]
-        +'\n\nقبل از تأیید، اسم‌ها و مبلغ‌ها را بررسی کن.',
+        'text':'🎧 متن صوت؛ هنوز اجرا نشده:\n\n'+proposed[:3300]
+        +'\n\nاگر کلمه‌ای اشتباه شنیده شده، متن را رد کن و اصلاحش کن. '
+        'قبل از تأیید، اسم‌ها و مبلغ‌ها را بررسی کن.',
         'reply_markup':buttons})
 
 def callback(cb,updateid):

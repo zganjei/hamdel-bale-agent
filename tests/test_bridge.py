@@ -45,6 +45,17 @@ class BridgeTests(unittest.TestCase):
        'message':{'chat':{'id':42}},'data':data},20)
     self.assertIn('متن خام از صدای بله',send.call_args.args[1])
 
+ def test_voice_polish_does_not_store_explanatory_header(self):
+  with patch.object(main,'api') as api:
+   agent_bridge.voice_ready(42,92,'متن خام',suggested='متن خواناتر')
+   msg=api.call_args.args[1]
+   self.assertIn('متن خواناتر',msg['text'])
+   self.assertNotIn('[ویرایش پیشنهادی',msg['text'])
+   self.assertNotIn('نامفهوم',msg['text'])
+   action=msg['reply_markup']['inline_keyboard'][0][0]['callback_data']
+   vid=action.split(':',1)[1]
+   self.assertEqual(agent_bridge.store().get_voice(vid,42)['transcript'],'متن خواناتر')
+
  def test_private_photo_queued_without_blocking_poller(self):
   message={'message_id':5,'chat':{'id':42,'type':'private'},'from':{'id':42},'photo':[{'file_id':'example','file_size':100}]}
   main.handle({'update_id':11,'message':message})

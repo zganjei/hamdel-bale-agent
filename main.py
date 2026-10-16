@@ -270,8 +270,12 @@ def process_speech():
             c.execute('UPDATE messages SET text=? WHERE chat=? AND id=?',(row['caption']+'\n'+note,row['chat'],row['id']))
         if row['reply']:
             import agent_bridge
-            agent_bridge.voice_ready(row['chat'],row['id'],row['caption']+'\n'+note,
-                                      suggested=suggestion if suggestion != transcript else None)
+            # Keep the actual transcript separate from explanatory labels.
+            caption=(row['caption'] or '').strip()
+            plain=(caption+'\n'+transcript).strip() if caption else transcript
+            polished=(caption+'\n'+suggestion).strip() if caption else suggestion
+            agent_bridge.voice_ready(row['chat'],row['id'],plain,
+                                      suggested=polished if polished != plain else None)
     except Exception as e:
         with db() as c:c.execute("UPDATE speech_jobs SET status='failed' WHERE chat=? AND id=?",(row['chat'],row['id']))
         logging.warning('Speech processing failed: %s',type(e).__name__)

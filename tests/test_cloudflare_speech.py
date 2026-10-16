@@ -93,6 +93,37 @@ class CloudflareTests(unittest.TestCase):
             with patch('multimodal.codex',return_value={'text':'برای خانواده امروز ۲۰۰ کرون از حساب گرفتیم و کارهای خانه را انجام دادیم'}):
                 self.assertEqual(polish_transcript_with_codex(raw,Path(d)),raw)
 
+
+    def test_codex_rejects_unknown_placeholders(self):
+        from hamdel.speech import polish_transcript_with_codex
+        raw=("فعالیت‌های غذا پختن و یه سری از کارهای حسینیه رو آوردیم "
+             "توی ساختمون دیگه‌ای که مربوط به فعالیت‌های خودمون می‌شه")
+        candidate=("فعالیت‌های غذا پختن و یه سری از کارهای حسینیه رو آوردیم "
+                   "[نامفهوم] که مربوط به فعالیت‌های خودمون می‌شه")
+        with tempfile.TemporaryDirectory() as d:
+            with patch('multimodal.codex',return_value={'text':candidate}):
+                self.assertEqual(polish_transcript_with_codex(raw,Path(d)),raw)
+
+    def test_codex_keeps_legible_edit_when_no_placeholders(self):
+        from hamdel.speech import polish_transcript_with_codex
+        raw=("فعالیت های غذا پختن رو بردیم توی یه ساختمان دیگه "
+             "و برای کارهای فرهنگی و آموزشی استفاده میکنیم")
+        candidate=("فعالیت‌های غذا پختن رو بردیم توی یه ساختمان دیگه "
+                   "و برای کارهای فرهنگی و آموزشی استفاده می‌کنیم.")
+        with tempfile.TemporaryDirectory() as d:
+            with patch('multimodal.codex',return_value={'text':candidate}):
+                self.assertEqual(polish_transcript_with_codex(raw,Path(d)),candidate)
+
+    def test_codex_preserves_written_out_amounts(self):
+        from hamdel.speech import polish_transcript_with_codex
+        raw=("برای این خانواده صد و پنجاه کرون کمک جمع کردیم "
+             "و بعد از اون دربارهٔ برنامه‌های آموزشی صحبت کردیم")
+        candidate=("برای این خانواده دویست و پنجاه کرون کمک جمع کردیم "
+                   "و بعد از اون دربارهٔ برنامه‌های آموزشی صحبت کردیم")
+        with tempfile.TemporaryDirectory() as d:
+            with patch('multimodal.codex',return_value={'text':candidate}):
+                self.assertEqual(polish_transcript_with_codex(raw,Path(d)),raw)
+
     def test_free_plan_quota_failure_is_safe(self):
         def fake_process(cmd, **kwargs):
             if cmd[0] == "ffprobe":return type("Result", (), {"stdout": "5"})()
