@@ -23,6 +23,7 @@ ROOT = Path(os.getenv('DATA_DIR', 'data'))
 TOKEN = os.getenv('BALE_BOT_TOKEN', '')
 MAX_FILE = 20 * 1024 * 1024
 API = 'https://tapi.bale.ai'
+ARCHIVE_SENDER = 'motahari58'
 STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
@@ -43,6 +44,8 @@ def init():
             size INTEGER, duration INTEGER, caption TEXT, reply INTEGER, status TEXT DEFAULT 'pending',
             transcript TEXT DEFAULT '', PRIMARY KEY(chat,id));
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS archive_identities(username TEXT, kind TEXT, sender_id INTEGER,
+            PRIMARY KEY(username,kind,sender_id));
         CREATE TABLE IF NOT EXISTS media_insights(file_id TEXT PRIMARY KEY, version TEXT,
             state TEXT, summary TEXT DEFAULT '', scope TEXT DEFAULT '', digest TEXT DEFAULT '',
             attempts INTEGER DEFAULT 0, retry_at INTEGER DEFAULT 0);
@@ -54,6 +57,10 @@ def init():
         ''')
         # Group voice messages are archived but must not be transmitted to third-party ASR by default.
         c.execute("UPDATE speech_jobs SET status='archived_only' WHERE reply=0 AND status IN ('pending','processing')")
+        columns={r[1] for r in c.execute('PRAGMA table_info(messages)')}
+        for name, dtype in (('source_username','TEXT'),('source_id','INTEGER'),('source_kind','TEXT')):
+            if name not in columns:c.execute(f'ALTER TABLE messages ADD COLUMN {name} {dtype}')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_archive_source ON messages(chat,source_username,date,id)')
         columns={r[1] for r in c.execute('PRAGMA table_info(ai_jobs)')}
         if 'artifact' not in columns: c.execute("ALTER TABLE ai_jobs ADD COLUMN artifact TEXT DEFAULT ''")
         columns={r[1] for r in c.execute('PRAGMA table_info(speech_jobs)')}
@@ -83,9 +90,35 @@ def send(chat, text):
 def admin(chat, uid):
     return any(x.get('user',{}).get('id') == uid for x in api('getChatAdministrators', {'chat_id':chat}))
 
+
+def archive_author(m):
+    """Actual author only, not a forwarded-from or quoted user."""
+    sender_chat=m.get('sender_chat')
+    kind='chat' if isinstance(sender_chat,dict) and sender_chat else 'user'
+    sender=sender_chat if kind=='chat' else m.get('from')
+    if not isinstance(sender,dict):return None
+    username=str(sender.get('username') or '').strip().lstrip('@').casefold()
+    try:
+        sid=int(sender.get('id'))
+        if sid==0:sid=None
+    except (TypeError,ValueError):sid=None
+    if username==ARCHIVE_SENDER:
+        if sid is not None:
+            with db() as c:
+                c.execute('INSERT OR IGNORE INTO archive_identities VALUES(?,?,?)',
+                          (ARCHIVE_SENDER,kind,sid))
+        return ARCHIVE_SENDER,sid,kind
+    if sid is not None:
+        with db() as c:
+            known=c.execute('SELECT 1 FROM archive_identities WHERE username=? AND kind=? AND sender_id=?',
+                            (ARCHIVE_SENDER,kind,sid)).fetchone()
+        if known:return ARCHIVE_SENDER,sid,kind
+    return None
+
+
 def export(chat):
     with db() as c:
-        rows = [dict(r) for r in c.execute("SELECT m.*,i.summary AS media_summary,i.scope AS media_scope,i.state AS media_state FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? ORDER BY m.date,m.id", (chat,))]
+        rows = [dict(r) for r in c.execute("SELECT m.*,i.summary AS media_summary,i.scope AS media_scope,i.state AS media_state FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? AND m.source_username=? ORDER BY m.date,m.id", (chat,ARCHIVE_SENDER))]
     out = io.BytesIO()
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('messages.json', json.dumps(rows, ensure_ascii=False, indent=2))
@@ -134,12 +167,12 @@ def answer_ai(cid, question, jobid):
     import multimodal
     with db() as c:
         rows=[dict(r) for r in c.execute(
-            "SELECT m.id,m.date,m.text,m.kind,m.status,m.filename,i.summary AS media_summary,i.scope AS media_scope,i.state AS media_state,i.digest AS content_hash FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? ORDER BY m.date DESC,m.id DESC LIMIT 1000",
-            (int(setting('chat_id')),))]
+            "SELECT m.id,m.date,m.text,m.kind,m.status,m.filename,i.summary AS media_summary,i.scope AS media_scope,i.state AS media_state,i.digest AS content_hash FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? AND m.source_username=? ORDER BY m.date DESC,m.id DESC LIMIT 1000",
+            (int(setting('chat_id')),ARCHIVE_SENDER))]
         history=[dict(r) for r in c.execute(
             "SELECT prompt,response FROM ai_jobs WHERE chat=? AND status='done' ORDER BY created DESC,id DESC LIMIT 4",(cid,))]
-        total=c.execute('SELECT count(*) FROM messages WHERE chat=?',(int(setting('chat_id')),)).fetchone()[0]
-        coverage=dict(c.execute("SELECT COALESCE(i.state,CASE WHEN m.status='text' THEN 'text' WHEN m.status='saved' THEN 'pending_analysis' ELSE m.status END),count(*) FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? GROUP BY 1",(int(setting('chat_id')),)))
+        total=c.execute('SELECT count(*) FROM messages WHERE chat=? AND source_username=?',(int(setting('chat_id')),ARCHIVE_SENDER)).fetchone()[0]
+        coverage=dict(c.execute("SELECT COALESCE(i.state,CASE WHEN m.status='text' THEN 'text' WHEN m.status='saved' THEN 'pending_analysis' ELSE m.status END),count(*) FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? AND m.source_username=? GROUP BY 1",(int(setting('chat_id')),ARCHIVE_SENDER)))
     archive_index=[]
     for source in rows:
         if source['kind'] in ('voice','audio') or Path(source.get('filename') or '').suffix.lower() in ('.opus','.ogg','.mp3','.m4a','.wav'):
@@ -182,10 +215,10 @@ def process_media():
     import media_reader
     with db() as c:
         row=c.execute("""SELECT m.* FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id
-            WHERE m.chat=? AND m.status='saved' AND m.kind NOT IN ('voice','audio','sticker')
+            WHERE m.chat=? AND m.source_username=? AND m.status='saved' AND m.kind NOT IN ('voice','audio','sticker')
             AND (i.file_id IS NULL OR i.version!=? OR (i.state='failed' AND i.attempts<3 AND i.retry_at<?))
             ORDER BY CASE WHEN m.kind='photo' THEN 0 WHEN m.kind='video' THEN 1 ELSE 2 END,m.date,m.id LIMIT 1""",
-            (int(setting('chat_id') or 0),media_reader.VERSION,int(time.time()))).fetchone()
+            (int(setting('chat_id') or 0),ARCHIVE_SENDER,media_reader.VERSION,int(time.time()))).fetchone()
     if not row:return False
     state='done';summary='';scope='';digest=''
     try:
@@ -336,7 +369,7 @@ def handle(u):
         if len(parts)!=2 or not hmac.compare_digest(parts[1].strip(),expected): return
         if not admin(cid,uid): return
         set_setting('chat_id',cid); set_setting('owner_id',uid); set_setting('pair_code','')
-        send(cid,'✅ گروه همدل متصل شد. پیام‌های جدید و فایل‌های تا ۲۰ مگابایت آرشیو می‌شوند.\n/status وضعیت آرشیو\n/export خروجی متن و فهرست مستندات (برای مدیران)')
+        send(cid,'✅ گروه همدل متصل شد. فقط پیام‌های @motahari58 و فایل‌هایشان تا ۲۰ مگابایت آرشیو می‌شوند.\n/status وضعیت آرشیو\n/export خروجی متن و فهرست مستندات (برای مدیران)')
         logging.info('Group pairing complete')
         return
     owner = str(uid)==setting('owner_id')
@@ -365,12 +398,14 @@ def handle(u):
         if command=='/export': export(cid)
         elif command=='/status':
             with db() as c:
-                total=c.execute('SELECT count(*) FROM messages').fetchone()[0]
-                states=dict(c.execute('SELECT status,count(*) FROM messages GROUP BY status'))
+                total=c.execute('SELECT count(*) FROM messages WHERE chat=? AND source_username=?',(cid,ARCHIVE_SENDER)).fetchone()[0]
+                states=dict(c.execute('SELECT status,count(*) FROM messages WHERE chat=? AND source_username=? GROUP BY status',(cid,ARCHIVE_SENDER)))
             send(cid,f'گزارش‌های ثبت‌شده: {total}\nفایل ذخیره‌شده: {states.get("saved",0)}\nبزرگ‌تر از سقف: {states.get("too_large",0)}\nدر انتظار/نیازمند بررسی: {states.get("pending",0)+states.get("failed",0)}\nفضای خالی: {shutil.disk_usage(ROOT).free//(1024*1024)} مگابایت')
-        else: send(cid,'پیام‌های جدید گروه خودکار ثبت می‌شوند. /export خروجی متن و فهرست فایل‌هاست. اصل فایل‌ها روی دیسک archive لیارا قرار دارند. گفت‌وگوی هوشمند برای مالک متصل‌کننده در خصوصی فعال است؛ در گروه ربات را منشن کنید یا به پیامش پاسخ دهید. بدون کامند صحبت کنید، ویس بفرستید یا درخواست کمک و پوستر بخواهید. ویس تا ۱۰ دقیقه و ۲۰ مگابایت؛ متن صوت و مبلغ‌ها را قبل از انتشار بررسی کنید.')
+        else: send(cid,'فقط پیام‌های @motahari58 در گروه آرشیو می‌شوند. /export خروجی متن و فهرست فایل‌هاست. اصل فایل‌ها روی دیسک archive لیارا قرار دارند. گفت‌وگوی هوشمند برای مالک متصل‌کننده در خصوصی فعال است؛ در گروه ربات را منشن کنید یا به پیامش پاسخ دهید. بدون کامند صحبت کنید، ویس بفرستید یا درخواست کمک و پوستر بخواهید. ویس تا ۱۰ دقیقه و ۲۰ مگابایت؛ متن صوت و مبلغ‌ها را قبل از انتشار بررسی کنید.')
         with db() as c: c.execute('INSERT OR IGNORE INTO updates VALUES(?,?,?)',(mid,'{"command":true}',int(time.time())))
         return
+    author=archive_author(m)
+    if author is None:return
     kind,f=attachment(m)
     size=f.get('file_size',0) or 0
     file_id=f.get('file_id','')
@@ -382,9 +417,9 @@ def handle(u):
         path=''
         if old and old['file_id']==file_id:
             status=old['status']; path=old['path']
-        c.execute('INSERT OR REPLACE INTO messages(chat,id,date,text,kind,file_id,filename,size,media_group,status,path) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-            (cid,m['message_id'],m.get('date',int(time.time())),text,kind,file_id,name,size,m.get('media_group_id',''),status,path))
-        c.execute('INSERT INTO updates VALUES(?,?,?)',(mid,json.dumps(u,ensure_ascii=False),int(time.time())))
+        c.execute('INSERT OR REPLACE INTO messages(chat,id,date,text,kind,file_id,filename,size,media_group,status,path,source_username,source_id,source_kind) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (cid,m['message_id'],m.get('date',int(time.time())),text,kind,file_id,name,size,m.get('media_group_id',''),status,path,*author))
+        c.execute('INSERT INTO updates VALUES(?,?,?)',(mid,'{"archived":true}',int(time.time())))
     # Non-addressed group voice is archived only; it is never sent to Cloudflare.
 
 class TooLarge(Exception): pass
@@ -420,7 +455,7 @@ def media_worker():
     while True:
         try:
             with db() as c:
-                row=c.execute("SELECT * FROM messages WHERE status='pending' AND retry_at<=? ORDER BY date LIMIT 1",(int(time.time()),)).fetchone()
+                row=c.execute("SELECT * FROM messages WHERE source_username=? AND status='pending' AND retry_at<=? ORDER BY date LIMIT 1",(ARCHIVE_SENDER,int(time.time()))).fetchone()
             if not row: time.sleep(2); continue
             try:
                 path,size=download_one(row)
