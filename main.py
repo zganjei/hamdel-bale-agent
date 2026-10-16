@@ -258,13 +258,20 @@ def process_speech():
         else:
             path,_=download_one(row)
         transcript=multimodal.transcribe(ROOT/path)
+        suggestion=transcript
+        try:
+            from hamdel.speech import polish_transcript_with_codex
+            suggestion=polish_transcript_with_codex(transcript,ROOT)
+        except Exception:
+            logging.warning('Codex speech proofreading unavailable; original preserved')
         note='[متن خودکار صوت؛ اسم‌ها و مبلغ‌ها نیازمند بازبینی هستند]\n'+transcript
         with db() as c:
             c.execute("UPDATE speech_jobs SET status='done',transcript=? WHERE chat=? AND id=?",(transcript,row['chat'],row['id']))
             c.execute('UPDATE messages SET text=? WHERE chat=? AND id=?',(row['caption']+'\n'+note,row['chat'],row['id']))
         if row['reply']:
             import agent_bridge
-            agent_bridge.voice_ready(row['chat'],row['id'],row['caption']+'\n'+note)
+            agent_bridge.voice_ready(row['chat'],row['id'],row['caption']+'\n'+note,
+                                      suggested=suggestion if suggestion != transcript else None)
     except Exception as e:
         with db() as c:c.execute("UPDATE speech_jobs SET status='failed' WHERE chat=? AND id=?",(row['chat'],row['id']))
         logging.warning('Speech processing failed: %s',type(e).__name__)

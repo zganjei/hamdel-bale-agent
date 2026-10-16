@@ -7,7 +7,7 @@
   "speech_provider": "cloudflare_free",
   "speech_model_file": "ggml-small-q5_1.bin",
   "speech_max_seconds": 600,
-  "speech_chunk_seconds": 45,
+  "speech_chunk_seconds": 26,
   "speech_timeout": 600,
   "speech_threads": 1
 }

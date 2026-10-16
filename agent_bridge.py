@@ -80,10 +80,20 @@ def keyboard(chat,jobid):
     if not row:return None
     return {'inline_keyboard':[[{'text':'✅ تأیید','callback_data':'approve:'+row[0]},{'text':'❌ رد','callback_data':'reject:'+row[0]}]]}
 
-def voice_ready(chat,mid,text):
+def voice_ready(chat,mid,text,suggested=None):
     import main
-    vid=store().add_voice(f'bale:{chat}:voice:{mid}',chat,text)
-    main.api('sendMessage',{'chat_id':chat,'text':'🎧 متن صوت؛ هنوز اجرا نشده:\n\n'+text[:3300]+'\n\nاگر متن درست است تأیید کن. اگر اشتباه است رد کن و متن صحیح را بنویس.','reply_markup':{'inline_keyboard':[[{'text':'✅ متن درست است','callback_data':'voice_ok:'+vid},{'text':'❌ اشتباه است','callback_data':'voice_no:'+vid}]]}})
+    proposed = ('[ویرایش پیشنهادی Codex؛ خطای شنیداری همچنان ممکن است]\n'
+                + suggested) if suggested else text
+    vid=store().add_voice(f'bale:{chat}:voice:{mid}',chat,proposed)
+    buttons={'inline_keyboard':[
+        [{'text':'✅ متن درست است','callback_data':'voice_ok:'+vid},
+         {'text':'❌ اشتباه است','callback_data':'voice_no:'+vid}],
+        [{'text':'🔎 متن خام Whisper','callback_data':'voice_raw:'+vid}]
+    ]}
+    main.api('sendMessage',{'chat_id':chat,
+        'text':'🎧 متن پیشنهادی صوت؛ هنوز اجرا نشده:\n\n'+proposed[:3300]
+        +'\n\nقبل از تأیید، اسم‌ها و مبلغ‌ها را بررسی کن.',
+        'reply_markup':buttons})
 
 def callback(cb,updateid):
     import main
@@ -96,6 +106,20 @@ def callback(cb,updateid):
         if d and d['source'].startswith(f'bale:{chat}:'):
             status=s.decide(ident,approve=action=='approve')
             result={'approved':'تأیید و در آرشیو ثبت شد؛ منتشر نشده.','rejected':'رد شد.','duplicate_reference':'شماره پیگیری تکراری است؛ ثبت نشد.'}.get(status,'قبلاً بررسی شده است.')
+    elif action=='voice_raw':
+        v=s.get_voice(ident,chat)
+        if v and v['status']=='pending':
+            try:
+                mid=int(v['source'].rsplit(':',1)[-1])
+                with main.db() as db:
+                    row=db.execute('SELECT text FROM messages WHERE chat=? AND id=?',
+                                   (chat,mid)).fetchone()
+                raw=row['text'] if row else ''
+            except (ValueError,TypeError):
+                raw=''
+            main.send(chat,'🔎 متن خام Whisper:\n\n'+(raw[:3500] or 'متن خام در آرشیو پیدا نشد.'))
+            result='متن خام نمایش داده شد.'
+        else: result='ویس دیگر در انتظار تأیید نیست.'
     elif action in ('voice_ok','voice_no'):
         v=s.get_voice(ident,chat)
         if v and v['status']=='pending':

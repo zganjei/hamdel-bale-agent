@@ -35,7 +35,7 @@ class CloudflareTests(unittest.TestCase):
             data = json.loads(request.data)
             self.assertEqual(data["language"], "fa")
             self.assertEqual(data["task"], "transcribe")
-            self.assertFalse(data["condition_on_previous_text"])
+            self.assertTrue(data["condition_on_previous_text"])
             self.assertTrue(data["vad_filter"])
             calls.append(data)
             return io.BytesIO(json.dumps({"success": True, "result": {"text": "کمک به خانواده"}}).encode())
@@ -66,6 +66,29 @@ class CloudflareTests(unittest.TestCase):
         self.assertIn("HTTP 400",str(ctx.exception))
         self.assertIn("5006",str(ctx.exception))
         self.assertNotIn("private text",str(ctx.exception))
+
+    def test_pause_split(self):
+        from hamdel.speech import speech_windows
+        def fake(cmd,**kwargs):
+            return type('Result',(),{'stderr':'silence_end: 21.2 | silence_duration: 0.4\nsilence_end: 46.1 | silence_duration: 0.6'})()
+        with patch('hamdel.speech.subprocess.run',side_effect=fake):
+            wins=speech_windows(Path('unused.opus'),71,26)
+        self.assertEqual(wins[0],(0.0,21.0))
+        self.assertEqual(wins[-1][1],71.0)
+        self.assertLessEqual(max(y-x for x,y in wins),28)
+
+    def test_join_removes_only_exact_overlap(self):
+        from hamdel.speech import join_transcript_parts
+        self.assertEqual(join_transcript_parts(['حسینیه را تمیز کردیم و',
+             'تمیز کردیم و وسایل را بردیم']),
+             'حسینیه را تمیز کردیم و وسایل را بردیم')
+
+    def test_codex_proofreading_rejects_changed_numbers(self):
+        from hamdel.speech import polish_transcript_with_codex
+        raw='برای خانواده امروز ۱۵۰ کرون از حساب گرفتیم و کارهای خانه را انجام دادیم'
+        with tempfile.TemporaryDirectory() as d:
+            with patch('multimodal.codex',return_value={'text':'برای خانواده امروز ۲۰۰ کرون از حساب گرفتیم و کارهای خانه را انجام دادیم'}):
+                self.assertEqual(polish_transcript_with_codex(raw,Path(d)),raw)
 
     def test_free_plan_quota_failure_is_safe(self):
         def fake_process(cmd, **kwargs):
