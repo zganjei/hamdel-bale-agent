@@ -11,7 +11,7 @@ if not token:raise SystemExit('LIARA_API_TOKEN is required')
 expected=json.loads(Path('release.json').read_text())['commit']
 subprocess.run(['liara','deploy','--app','hamdel-reporter','--api-token',token,
                 '--no-app-logs','--message','GitHub '+expected[:12]],check=True)
-for attempt in range(30):
+for attempt in range(90):
     try:
         with urllib.request.urlopen('https://hamdel-reporter.liara.run/health',timeout=10) as r:
             health=json.load(r)
@@ -27,6 +27,7 @@ for attempt in range(30):
         safe_state = health if isinstance(locals().get('health'), dict) else {}
         print('Waiting for running health check:',
               'app=' + str(safe_state.get('state', 'unknown'))[:30],
+              'release=' + str(safe_state.get('release', 'unknown'))[:12],
               'speech=' + str(safe_state.get('speech_state', 'unknown'))[:30],
               'issue=' + str(safe_state.get('speech_issue', 'unknown'))[:40],
               flush=True)
