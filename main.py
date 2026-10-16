@@ -18,6 +18,7 @@ import urllib.request
 import urllib.error
 import zipfile
 from hamdel.config import settings as runtime_settings
+from hamdel.live_context import RecentContext, needs_history
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(os.getenv('DATA_DIR', 'data'))
@@ -26,6 +27,7 @@ MAX_FILE = 20 * 1024 * 1024
 API = 'https://tapi.bale.ai'
 ARCHIVE_SENDER = str(runtime_settings().get('archive_sender_username','motahari58')).strip().lstrip('@').casefold()
 STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
+LIVE_GROUP = RecentContext()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def db():
@@ -165,7 +167,15 @@ def enqueue_ai(mid, cid, text):
                   (mid,cid,text[:8000],int(time.time())))
 
 def answer_ai(cid, question, jobid):
-    import multimodal
+    import agent_bridge
+    recent=LIVE_GROUP.snapshot(setting('chat_id'))
+    if not needs_history(question):
+        # No archive reads on normal questions. Codex resumes its own chat session.
+        context={'mode':'conversation','group_context':recent,
+                 'archive_index':[],'selected_reports':[],
+                 'total_archived':None,'included':0,'archive_coverage':{},
+                 'today_utc':time.strftime('%Y-%m-%d',time.gmtime())}
+        return agent_bridge.reply(cid,question,context,jobid)
     with db() as c:
         rows=[dict(r) for r in c.execute(
             "SELECT m.id,m.date,m.text,m.kind,m.status,m.filename,i.summary AS media_summary,i.scope AS media_scope,i.state AS media_state,i.digest AS content_hash FROM messages m LEFT JOIN media_insights i ON m.file_id=i.file_id AND i.version='media-v1' WHERE m.chat=? AND m.source_username=? ORDER BY m.date DESC,m.id DESC LIMIT 1000",
@@ -205,7 +215,8 @@ def answer_ai(cid, question, jobid):
         budget-=size;selected.append(row)
         if len(selected)>=30:break
     selected.sort(key=lambda r:(r['date_utc'],r['id']))
-    context={'total_archived':total,'included':len(selected),'archive_coverage':coverage,
+    context={'mode':'historical_report','group_context':recent,
+             'total_archived':total,'included':len(selected),'archive_coverage':coverage,
              'selected_reports':selected, 'archive_index':archive_index, 'conversation':list(reversed(history)),
              'question':question,'today_utc':time.strftime('%Y-%m-%d',time.gmtime())}
     import agent_bridge
@@ -386,6 +397,9 @@ def handle(u):
         else: enqueue_ai(mid,cid,text)
         return
     if str(cid)!=bound: return
+    # Recent messages of all group members are retained only in RAM.
+    # The permanent archive below stays restricted to @motahari58.
+    LIVE_GROUP.add(cid,m)
     addressed = '@hamdel_report_bot' in text.lower() or m.get('reply_to_message',{}).get('from',{}).get('username','').lower()=='hamdel_report_bot'
     if owner and addressed and (m.get('voice') or m.get('audio')) and not u.get('edited_message'):
         enqueue_speech(m,True)
