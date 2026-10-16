@@ -1,0 +1,1 @@
+"""Hamdel Bale-first agent."""

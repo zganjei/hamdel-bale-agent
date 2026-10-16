@@ -1,0 +1,109 @@
+"""Trusted v2 ledger and resumable agent, integrated with the existing archive worker."""
+import json, os, tempfile, hashlib
+from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from hamdel.store import Store
+from hamdel.codex_agent import CodexAgent
+from hamdel.config import settings
+
+ROOT=Path(os.getenv('DATA_DIR','data')).resolve()
+_store=None
+
+def store():
+    global _store
+    if _store is None: _store=Store(ROOT/'agent-v2'/'trusted')
+    return _store
+
+def agent(chat):
+    import multimodal
+    os.environ['CODEX_HOME']=str(multimodal.AUTH)
+    cfg=settings()
+    return CodexAgent(ROOT/'agent-v2'/'chats'/str(int(chat)),store(),executable=str(multimodal.BINARY),
+                      model=cfg['agent_model'],effort=cfg['agent_effort'],timeout=cfg['agent_timeout'])
+
+def reply(chat, question, context, jobid):
+    import multimodal
+    a=agent(chat);s=store();folder=a.workspace/'context';folder.mkdir(exist_ok=True)
+    s.export_approved_csv(folder/'approved_donations.csv')
+    for name,obj in [('summary',s.summary()),('pending',s.list_drafts()),('approved_content',s.approved_content())]:
+        (folder/(name+'.json')).write_text(json.dumps(obj,ensure_ascii=False),encoding='utf-8')
+    # Only relevant archive snippets enter each turn; history is kept by the Codex session.
+    context=dict(context);context.pop('conversation',None);context.pop('question',None)
+    sources=context.pop('archive_index', context.get('selected_reports', []))
+    context.pop('selected_reports', None)
+    (folder/'archive_index.json').write_text(json.dumps(sources,ensure_ascii=False),encoding='utf-8')
+    image_input=None
+    if question.startswith('__HAMDEL_MEDIA__'):
+        from hamdel.runner import HamdelService
+        from hamdel.bale import Bale
+        import main
+        msg=json.loads(question[len('__HAMDEL_MEDIA__'):])
+        service=HamdelService(bale=Bale(main.TOKEN),store=s,agent=a,allowed_users={int(main.setting('owner_id'))})
+        body,image_input=service._attachment(msg,hashlib.sha256(str(jobid).encode()).hexdigest())
+        question=(msg.get('caption') or 'این فایل را بررسی کن.')+'\n'+body
+    prompt=question+'\n\nتاریخ امروز استکهلم: '+datetime.now(ZoneInfo('Europe/Stockholm')).date().isoformat()
+    prompt+='\nوضعیت آرشیو (شواهد کامل در context/archive_index.json؛ جستجو با tools/archive.py):\n'+json.dumps(context,ensure_ascii=False)
+    answer,draft=a.ask(str(chat),prompt,str(jobid),image_input)
+    image=''
+    if draft:
+        did,_=s.create_draft(f'bale:{chat}:job:{jobid}',draft)
+        answer+='\n\n📝 '+draft['title']+'\n'+draft['body']
+        if draft['kind']=='donation':
+            d=draft['data'];answer+=f"\n\nمبلغ قابل ثبت: {d['amount']:,} {d['currency']}\nتاریخ: {d['date']}\nکد: {d.get('campaign_code') or 'بدون عنوان'}\nشماره پیگیری: {d.get('payment_reference') or 'ندارد'}"
+        answer+='\n\nهنوز تأیید یا منتشر نشده است.'
+        if draft['kind']=='poster_brief':
+            try:
+                with tempfile.TemporaryDirectory(prefix='poster-',dir=ROOT) as d:
+                    image=multimodal.codex('Use ONLY the built-in image generation tool. Create one mobile-friendly Persian charity poster. Preserve exact supplied names, amounts, and wording. Do not invent payment numbers or logos. Warm cream, green and gold, large legible Persian typography. Brief:\n'+draft['body'],Path(d),image=True)
+            except Exception: answer+='\nساخت تصویر کامل نشد؛ می‌توانی دوباره درخواست بدهی.'
+    if a.last_artifacts:
+        with s.connect() as c:
+            c.execute('CREATE TABLE IF NOT EXISTS job_artifacts(chat TEXT,job TEXT,paths TEXT,PRIMARY KEY(chat,job))')
+            c.execute('INSERT OR REPLACE INTO job_artifacts VALUES(?,?,?)',
+                      (str(chat),str(jobid),json.dumps([str(p) for p in a.last_artifacts])))
+    return answer,image
+
+def artifacts(chat,jobid):
+    s=store()
+    with s.connect() as c:
+        c.execute('CREATE TABLE IF NOT EXISTS job_artifacts(chat TEXT,job TEXT,paths TEXT,PRIMARY KEY(chat,job))')
+        row=c.execute('SELECT paths FROM job_artifacts WHERE chat=? AND job=?',(str(chat),str(jobid))).fetchone()
+    base=(ROOT/'agent-v2'/'chats'/str(int(chat))/'outputs').resolve()
+    return [p for raw in (json.loads(row[0]) if row else [])
+            if (p:=Path(raw).resolve()).is_relative_to(base) and p.is_file() and p.stat().st_size<=18*1024*1024]
+
+def keyboard(chat,jobid):
+    s=store()
+    with s.connect() as c:
+        row=c.execute('SELECT id FROM drafts WHERE source=? AND status=?',(f'bale:{chat}:job:{jobid}','pending')).fetchone()
+    if not row:return None
+    return {'inline_keyboard':[[{'text':'✅ تأیید','callback_data':'approve:'+row[0]},{'text':'❌ رد','callback_data':'reject:'+row[0]}]]}
+
+def voice_ready(chat,mid,text):
+    import main
+    vid=store().add_voice(f'bale:{chat}:voice:{mid}',chat,text)
+    main.api('sendMessage',{'chat_id':chat,'text':'🎧 متن صوت؛ هنوز اجرا نشده:\n\n'+text[:3300]+'\n\nاگر متن درست است تأیید کن. اگر اشتباه است رد کن و متن صحیح را بنویس.','reply_markup':{'inline_keyboard':[[{'text':'✅ متن درست است','callback_data':'voice_ok:'+vid},{'text':'❌ اشتباه است','callback_data':'voice_no:'+vid}]]}})
+
+def callback(cb,updateid):
+    import main
+    if str(cb.get('from',{}).get('id'))!=main.setting('owner_id'):return
+    chat=cb.get('message',{}).get('chat',{}).get('id');raw=cb.get('data','');s=store()
+    action,_,ident=raw.partition(':')
+    result='درخواست نامعتبر است.'
+    if action in ('approve','reject'):
+        d=s.get_draft(ident)
+        if d and d['source'].startswith(f'bale:{chat}:'):
+            status=s.decide(ident,approve=action=='approve')
+            result={'approved':'تأیید و در آرشیو ثبت شد؛ منتشر نشده.','rejected':'رد شد.','duplicate_reference':'شماره پیگیری تکراری است؛ ثبت نشد.'}.get(status,'قبلاً بررسی شده است.')
+    elif action in ('voice_ok','voice_no'):
+        v=s.get_voice(ident,chat)
+        if v and v['status']=='pending':
+            if action=='voice_ok':
+                # Stable job identity makes retries safe even across process interruption.
+                mid=-int(hashlib.sha256(('voice:'+ident).encode()).hexdigest()[:14],16)
+                main.enqueue_ai(mid,chat,v['transcript'])
+                s.decide_voice(ident,chat,status='processed');result='متن تأیید شد و در صف بررسی قرار گرفت.'
+            else:s.decide_voice(ident,chat,status='rejected');result='رد شد؛ متن صحیح را بنویس.'
+        else:result='این ویس قبلاً بررسی شده یا متعلق به این گفتگو نیست.'
+    main.api('answerCallbackQuery',{'callback_query_id':cb['id'],'text':result})

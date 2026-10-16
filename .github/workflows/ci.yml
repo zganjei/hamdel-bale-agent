@@ -1,0 +1,54 @@
+name: Test and deploy Hamdel
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hamdel-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m compileall -q hamdel main.py agent_bridge.py multimodal.py media_reader.py
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      LIARA_API_TOKEN: ${{ secrets.LIARA_API_TOKEN }}
+    steps:
+      - name: Check deployment configuration
+        id: config
+        shell: bash
+        run: |
+          if [ -n "$LIARA_API_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Tests passed; deployment is pending LIARA_API_TOKEN repository secret."
+            echo "Deployment not configured: add LIARA_API_TOKEN to repository Actions secrets." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.enabled == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          node-version: '22'
+      - name: Install deployment CLI
+        if: steps.config.outputs.enabled == 'true'
+        run: npm install --global @liara/cli@9.5.1
+      - name: Record source commit
+        if: steps.config.outputs.enabled == 'true'
+        run: python3 scripts/prepare_release.py "$GITHUB_SHA"
+      - name: Deploy and verify the exact commit
+        if: steps.config.outputs.enabled == 'true'
+        run: python3 scripts/deploy.py

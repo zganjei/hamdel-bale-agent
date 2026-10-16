@@ -1,0 +1,14 @@
+data/
+bin/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*auth.json
+*.sqlite*
+*.log
+*.partial
+liara-tools/
+.venv/
+dist/
