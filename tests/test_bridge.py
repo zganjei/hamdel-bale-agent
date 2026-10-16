@@ -98,7 +98,7 @@ class BridgeTests(unittest.TestCase):
   m={'message_id':902,'chat':{'id':99,'type':'group'},'from':{'id':58,'username':'motahari58'},'text':'new'}
   main.handle({'update_id':202,'message':m})
   with patch.object(agent_bridge,'reply',return_value=('ok','')) as stub:
-   main.answer_ai(42,'new',200)
+   main.answer_ai(42,'گزارش فعالیت‌های ماه گذشته',200)
   context=stub.call_args.args[2]
   self.assertEqual(context['total_archived'],1)
   self.assertEqual([r['id'] for r in context['archive_index']],[902])

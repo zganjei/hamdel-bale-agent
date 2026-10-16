@@ -24,7 +24,7 @@ class EvidenceTests(unittest.TestCase):
                 self.assertTrue(main.process_media());self.assertTrue(main.process_media())
                 self.assertFalse(main.process_media());self.assertEqual(analyze.call_count,1)
             with patch.object(agent_bridge,'reply',side_effect=lambda chat,question,context,jobid:context):
-                context=main.answer_ai(999,'گزارش کلاس را بنویس',1)
+                context=main.answer_ai(999,'گزارش فعالیت‌های ماه قبل کلاس را بنویس',1)
                 self.assertEqual(context['archive_coverage'],{'done':2})
                 self.assertEqual(context['selected_reports'][0]['media_summary'],'visible classroom')
                 self.assertEqual(len({r['content_hash'] for r in context['selected_reports']}),1)
@@ -39,7 +39,7 @@ class EvidenceTests(unittest.TestCase):
             with patch.object(media_reader,'analyze',side_effect=RuntimeError('failure')):
                 main.process_media();self.assertFalse(main.process_media())
             with patch.object(agent_bridge,'reply',side_effect=lambda chat,question,context,jobid:context):
-                context=main.answer_ai(999,'گزارش',3)
+                context=main.answer_ai(999,'گزارش ماهانه',3)
                 self.assertEqual(context['archive_coverage'],{'failed':1})
                 self.assertEqual(context['selected_reports'][0]['media_summary'],'')
 
