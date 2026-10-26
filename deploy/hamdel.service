@@ -1,5 +1,5 @@
 [Unit]
-Description=Hamdel Bale report bot
+Description=Hamdel Telegram report bot
 After=network-online.target
 Wants=network-online.target
 

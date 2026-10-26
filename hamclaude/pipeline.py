@@ -1,4 +1,4 @@
-"""Intake of Bale messages, report preparation and delivery to the owner's private chat."""
+"""Intake of Telegram messages, report preparation and delivery to the owner's private chat."""
 import json, logging, time
 from pathlib import Path
 
@@ -7,7 +7,7 @@ AUDIO_EXT = (".opus", ".ogg", ".mp3", ".m4a", ".wav")
 MAX_CAPTION = 900
 
 def item_from_message(m, origin):
-    """Normalise a Bale message into an item row, or None if it has nothing to report."""
+    """Normalise a Telegram message into an item row, or None if it has nothing to report."""
     text = (m.get("text") or m.get("caption") or "").strip()
     kind, f = "text", {}
     doc = m.get("document") or {}
@@ -30,8 +30,8 @@ def item_from_message(m, origin):
             "duration": f.get("duration") or 0, "text": text}
 
 class Pipeline:
-    def __init__(self, cfg, store, bale, media, analyst, sleep=time.sleep):
-        self.cfg, self.store, self.bale, self.media, self.analyst, self.sleep = cfg, store, bale, media, analyst, sleep
+    def __init__(self, cfg, store, tg, media, analyst, sleep=time.sleep):
+        self.cfg, self.store, self.tg, self.media, self.analyst, self.sleep = cfg, store, tg, media, analyst, sleep
 
     # ---- preparation -------------------------------------------------
     def prepare(self, it):
@@ -41,7 +41,7 @@ class Pipeline:
         folder = self.store.root / "media"
         suffix = Path(it["filename"]).suffix[:8] or {"photo": ".jpg", "voice": ".ogg", "video": ".mp4"}.get(it["kind"], ".bin")
         try:
-            path = Path(it["path"]) if it["path"] and Path(it["path"]).exists() else self.bale.download(
+            path = Path(it["path"]) if it["path"] and Path(it["path"]).exists() else self.tg.download(
                 it["file_id"], folder / f"{abs(it['chat'])}_{it['msg_id']}{suffix}", self.cfg.max_file_bytes)
             self.store.update_item(it["chat"], it["msg_id"], path=str(path)); it["path"] = str(path)
         except OverflowError:
@@ -131,8 +131,8 @@ class Pipeline:
         try:
             for i in range(done, len(parts)):
                 p = parts[i]
-                if p["t"] == "msg": self.bale.send_message(owner, p["text"])
-                else: self.bale.send_file(owner, p["kind"], p["path"], p["caption"])
+                if p["t"] == "msg": self.tg.send_message(owner, p["text"])
+                else: self.tg.send_file(owner, p["kind"], p["path"], p["caption"])
                 self.store.set_report(rid, delivered=i + 1)
         except Exception as e:
             logging.warning("Delivery interrupted (%s); will resume", type(e).__name__); self.sleep(5); return True
@@ -141,4 +141,4 @@ class Pipeline:
     def answer_owner(self, question):
         try: reply = self.analyst.answer(question, self.store.recent_reports())
         except Exception: reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بپرس."
-        self.bale.send_message(int(self.cfg.owner_id), reply)
+        self.tg.send_message(int(self.cfg.owner_id), reply)

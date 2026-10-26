@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# One-paste installer for a fresh Ubuntu server (Oracle/Google Cloud).
+# One-paste installer for a fresh Ubuntu server (Google Cloud).
 #   export GH='<github token>'; curl -fsSL -H "Authorization: Bearer $GH" -H "Accept: application/vnd.github.raw" \
 #     https://api.github.com/repos/zganjei/hamdel-bale-agent/contents/deploy/bootstrap.sh?ref=hamdel-claude-bot | sudo -E bash
 # Secrets are typed/pasted at prompts and are written only to /opt/hamdel/env (mode 600).
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
 [ -n "${GH:-}" ] || { echo "export GH first"; exit 1; }
+# Values may be pre-set as environment variables (TG_TOKEN, GEMINI_KEY); otherwise they are asked at a prompt.
 ask() { local v; read -rsp "$1: " v < /dev/tty; echo >&2; printf '%s' "$v"; }
-BALE=$(ask "Bale bot token")
-code=$(curl -s -o /tmp/getme -w '%{http_code}' "https://tapi.bale.ai/bot${BALE}/getMe" || true)
-grep -q '"ok":true' /tmp/getme 2>/dev/null && echo "Bale reachable from this server: OK" || { echo "Bale getMe FAILED (HTTP $code): $(head -c 200 /tmp/getme 2>/dev/null)"; echo "Wrong token, or Bale does not accept this server. Stopping."; exit 1; }
-GEMINI=$(ask "Gemini API key (from aistudio.google.com; empty to use Cloudflare only)")
-CFA=$(ask "Cloudflare account id (empty to skip)"); CFT=$(ask "Cloudflare API token (empty to skip)")
+TG=${TG_TOKEN:-$(ask "Telegram bot token (from @BotFather)")}
+code=$(curl -s -o /tmp/getme -w '%{http_code}' "https://api.telegram.org/bot${TG}/getMe" || true)
+grep -q '"ok":true' /tmp/getme 2>/dev/null && echo "Telegram reachable from this server: OK" || { echo "Telegram getMe FAILED (HTTP $code): $(head -c 200 /tmp/getme 2>/dev/null)"; echo "Wrong token or no access. Stopping."; exit 1; }
+GEMINI=${GEMINI_KEY:-$(ask "Gemini API key (from aistudio.google.com)")}
+CFA=; CFT=
 apt-get update -y && apt-get install -y python3 ffmpeg curl ca-certificates
 if [ "$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)" -lt 1800 ] && ! swapon --show | grep -q .; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
@@ -20,14 +21,12 @@ id hamdel >/dev/null 2>&1 || useradd --system --create-home --home-dir /home/ham
 mkdir -p /opt/hamdel/data /opt/hamdel/app
 curl -fsSL -H "Authorization: Bearer $GH" -L https://api.github.com/repos/zganjei/hamdel-bale-agent/tarball/hamdel-claude-bot | tar xz -C /opt/hamdel/app --strip-components=1
 cat > /opt/hamdel/env <<ENV
-BALE_BOT_TOKEN=$BALE
+TELEGRAM_BOT_TOKEN=$TG
 LLM_PROVIDER=claudecode
 CLAUDE_CODE_MODEL=sonnet
 GEMINI_API_KEY=$GEMINI
 GEMINI_MODEL=gemini-2.5-flash
-CLOUDFLARE_ACCOUNT_ID=$CFA
-CLOUDFLARE_API_TOKEN=$CFT
-REPORT_SENDER=motahari58
+REPORT_SENDER=
 QUIET_SECONDS=120
 DATA_DIR=/opt/hamdel/data
 ENV

@@ -2,7 +2,7 @@ import base64, json, tempfile, time, unittest, urllib.error
 from pathlib import Path
 import main
 from hamclaude.analyst import Analyst, guard_transcript
-from hamclaude.bale import chunks
+from hamclaude.telegram import chunks
 from hamclaude.config import Config
 from hamclaude.pipeline import Pipeline, item_from_message
 from hamclaude.store import Store
@@ -10,7 +10,7 @@ from hamclaude.store import Store
 JPEG = base64.b64decode("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=")
 GROUP, OWNER = -100, 42
 
-class FakeBale:
+class FakeTG:
     def __init__(self): self.sent, self.fail_after = [], None
     def call(self, m, d=None, timeout=0): return {"username": "x"}
     def send_message(self, chat, text):
@@ -54,10 +54,10 @@ def photo(i, **kw):
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
-        self.cfg = Config(data_dir=self.tmp.name, owner_id=str(OWNER), group_chat_id=str(GROUP), anthropic_key="k", quiet_seconds=60)
-        self.store, self.bale, self.analyst = Store(self.tmp.name), FakeBale(), FakeAnalyst(self.cfg)
-        self.pipe = Pipeline(self.cfg, self.store, self.bale, FakeMedia(), self.analyst, sleep=lambda s: None)
-        self.app = main.App(self.cfg, self.store, self.bale, self.pipe)
+        self.cfg = Config(data_dir=self.tmp.name, owner_id=str(OWNER), group_chat_id=str(GROUP), anthropic_key="k", quiet_seconds=60, report_sender="motahari58")
+        self.store, self.tg, self.analyst = Store(self.tmp.name), FakeTG(), FakeAnalyst(self.cfg)
+        self.pipe = Pipeline(self.cfg, self.store, self.tg, FakeMedia(), self.analyst, sleep=lambda s: None)
+        self.app = main.App(self.cfg, self.store, self.tg, self.pipe)
         for k in ("updates", "group_items", "ignored_group", "private_items", "handler_errors", "skipped_updates"): main.STATE[k] = 0
     def run_reports(self, advance=1000):
         rid = self.store.close_ready(60, now=int(time.time()) + advance)
@@ -94,10 +94,10 @@ class ReportTests(Base):
         for u in (voice(1), photo(2), photo(3)): self.app.dispatch(u)
         self.assertIsNone(self.store.close_ready(60))        # still inside quiet window
         rid = self.run_reports()
-        kinds = [s[0] for s in self.bale.sent]
+        kinds = [s[0] for s in self.tg.sent]
         self.assertEqual(kinds[:2], ["msg", "msg"])           # summary, then full transcript
-        self.assertIn("توزیع کمک غیرنقدی", self.bale.sent[0][2]); self.assertIn("بیست تا بسته", self.bale.sent[1][2])
-        self.assertTrue(all(s[1] == OWNER for s in self.bale.sent))
+        self.assertIn("توزیع کمک غیرنقدی", self.tg.sent[0][2]); self.assertIn("بیست تا بسته", self.tg.sent[1][2])
+        self.assertTrue(all(s[1] == OWNER for s in self.tg.sent))
         self.assertEqual(kinds.count("photo"), 1)             # only the photo judged relevant is sent
         self.assertEqual(self.store.q("SELECT status FROM reports WHERE id=?", (rid,), one=True)[0], "done")
         self.assertIn("بیست", self.store.items(rid)[0]["raw_asr"])   # raw ASR preserved
@@ -105,32 +105,32 @@ class ReportTests(Base):
         for u in (photo(1), photo(2)): self.app.dispatch(u)
         self.analyst.analyze = lambda items: self.analyst.real._clean({"title": "t", "category": "سایر", "summary": "s", "key_points": [],
             "amounts": [], "follow_ups": [], "uncertain": [], "transcripts": [], "relevant_item_ids": []}, items)
-        self.run_reports(); self.assertEqual([s[0] for s in self.bale.sent].count("photo"), 2)
+        self.run_reports(); self.assertEqual([s[0] for s in self.tg.sent].count("photo"), 2)
     def test_delivery_resumes_without_duplicates(self):
         for u in (voice(1), photo(2)): self.app.dispatch(u)
-        self.bale.fail_after = 1; rid = self.run_reports()
-        msgs = [s for s in self.bale.sent if s[0] == "msg"]
+        self.tg.fail_after = 1; rid = self.run_reports()
+        msgs = [s for s in self.tg.sent if s[0] == "msg"]
         self.assertEqual(len({m[2] for m in msgs}), len(msgs))
         self.assertEqual(self.store.q("SELECT status FROM reports WHERE id=?", (rid,), one=True)[0], "done")
     def test_analysis_failure_falls_back_to_raw_content(self):
         self.app.dispatch(voice(1)); self.app.dispatch(photo(2))
         def fail(items): raise RuntimeError("claude_http_500")
         self.analyst.analyze = fail; self.run_reports()
-        self.assertIn("تحلیل خودکار انجام نشد", self.bale.sent[0][2]); self.assertIn("بیست تا بسته", self.bale.sent[0][2])
-        self.assertIn("photo", [s[0] for s in self.bale.sent])
+        self.assertIn("تحلیل خودکار انجام نشد", self.tg.sent[0][2]); self.assertIn("بیست تا بسته", self.tg.sent[0][2])
+        self.assertIn("photo", [s[0] for s in self.tg.sent])
     def test_oversize_file_is_reported_not_silently_lost(self):
         u = photo(1); u["message"]["photo"][0]["file_id"] = "big"; self.app.dispatch(u); self.run_reports()
-        self.assertIn("۲۰ مگابایت", self.bale.sent[0][2])
+        self.assertIn("۲۰ مگابایت", self.tg.sent[0][2])
     def test_changed_number_in_cleaned_transcript_falls_back_to_raw(self):
         self.app.dispatch(voice(1))
         self.analyst.out = {"title": "t", "category": "سایر", "summary": "s", "key_points": [], "amounts": [], "follow_ups": [],
                             "uncertain": [], "relevant_item_ids": [], "transcripts": [{"item_id": 1, "text": "سلام ما امروز رفتیم سی تا بسته غذایی دادیم به خانواده‌ها"}]}
-        self.run_reports(); text = self.bale.sent[1][2]
-        self.assertIn("بیست تا بسته", text); self.assertIn("رد شد", self.bale.sent[0][2])
+        self.run_reports(); text = self.tg.sent[1][2]
+        self.assertIn("بیست تا بسته", text); self.assertIn("رد شد", self.tg.sent[0][2])
     def test_unknown_category_is_normalised(self):
         self.app.dispatch(photo(1)); self.analyst.out = {"title": "t", "category": "ناشناس", "summary": "s", "key_points": [], "amounts": [],
             "follow_ups": [], "uncertain": [], "transcripts": [], "relevant_item_ids": [99]}
-        self.run_reports(); self.assertIn("سایر", self.bale.sent[0][2])
+        self.run_reports(); self.assertIn("سایر", self.tg.sent[0][2])
 
 class UnitTests(unittest.TestCase):
     def test_chunks_lose_nothing(self):
@@ -222,7 +222,7 @@ class ClaudeCodeAnalystTests(unittest.TestCase):
         self.assertNotIn("--dangerously-skip-permissions", c); self.assertIn("--json-schema", c)
         self.assertEqual(seen["files"], ["item2_0.jpg", "report.txt"]); self.assertIn("بیست تا بسته", seen["text"])
         self.assertEqual(out["relevant_item_ids"], [2]); self.assertTrue(items[1]["seen"])
-        self.assertFalse(any(k.startswith(("BALE", "CLOUDFLARE", "ANTHROPIC")) for k in seen["env"]))
+        self.assertFalse(any(k.startswith(("TELEGRAM", "CLOUDFLARE", "ANTHROPIC")) for k in seen["env"]))
 
     def test_failures_become_runtime_errors_so_fallback_delivery_works(self):
         from hamclaude.cc_analyst import ClaudeCodeAnalyst
@@ -261,4 +261,13 @@ class AsrProviderTests(unittest.TestCase):
         self.assertEqual(wer("بیست تا بسته دادیم", "بیست تا بسته دادیم."), 0)
         self.assertAlmostEqual(wer("بیست تا بسته دادیم", "سی تا بسته دادیم"), .25)
 
-if __name__ == "__main__": unittest.main()
+
+
+
+class OpenGroupTests(unittest.TestCase):
+    def test_empty_sender_filter_accepts_humans_not_bots(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(data_dir=d, owner_id=str(OWNER), group_chat_id=str(GROUP), anthropic_key="k")
+            app = main.App(cfg, Store(d), FakeTG(), None)
+            self.assertTrue(app.real_author({"from": {"id": 1, "username": "anyone"}}))
+            self.assertFalse(app.real_author({"from": {"id": 2, "is_bot": True}}))

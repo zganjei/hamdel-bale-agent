@@ -1,8 +1,8 @@
-"""Minimal Bale Bot API client (stdlib only)."""
+"""Minimal Telegram Bot API client (stdlib only)."""
 import json, os, urllib.request
 from pathlib import Path
 
-API = "https://tapi.bale.ai"
+API = "https://api.telegram.org"
 
 def chunks(text, size=3500):
     text = str(text or "").strip(); out = []
@@ -13,7 +13,7 @@ def chunks(text, size=3500):
     if text: out.append(text)
     return out
 
-class Bale:
+class Telegram:
     def __init__(self, token, opener=urllib.request.urlopen):
         self.token, self.open = token, opener
 
@@ -22,11 +22,11 @@ class Bale:
                                      headers={"Content-Type": "application/json"})
         with self.open(req, timeout=timeout) as r:
             res = json.load(r)
-        if not res.get("ok"): raise RuntimeError("Bale rejected " + method)
+        if not res.get("ok"): raise RuntimeError("Telegram rejected " + method)
         return res["result"]
 
     def updates(self, offset):
-        return self.call("getUpdates", {"offset": offset, "limit": 50, "timeout": 25}, timeout=60)
+        return self.call("getUpdates", {"offset": offset, "limit": 50, "timeout": 25, "allowed_updates": ["message"]}, timeout=60)
 
     def send_message(self, chat, text):
         for part in chunks(text) or ["—"]:
@@ -45,7 +45,7 @@ class Bale:
         req = urllib.request.Request(f"{API}/bot{self.token}/{method}", data=b"".join(parts),
                                      headers={"Content-Type": f"multipart/form-data; boundary={b}"})
         with self.open(req, timeout=120) as r:
-            if not json.load(r).get("ok"): raise RuntimeError("Bale rejected " + method)
+            if not json.load(r).get("ok"): raise RuntimeError("Telegram rejected " + method)
 
     def download(self, file_id, dest, max_bytes):
         info = self.call("getFile", {"file_id": file_id})

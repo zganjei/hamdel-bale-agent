@@ -1,1 +1,0 @@
-{"app": "hamdel-claude-bot", "platform": "python", "port": 8080, "python": {"version": "3.12"}, "disks": [{"name": "data", "mountTo": "/usr/src/app/data"}]}

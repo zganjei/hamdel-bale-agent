@@ -1,4 +1,4 @@
-"""Hamdel report bot for Bale. Entry point: python main.py (single polling process)."""
+"""Hamdel report bot for Telegram. Entry point: python main.py (single polling process)."""
 import json, logging, queue, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -6,7 +6,7 @@ from hamclaude import config as cfgmod
 from hamclaude.analyst import Analyst
 from hamclaude.cf_analyst import CFAnalyst
 from hamclaude.cc_analyst import ClaudeCodeAnalyst
-from hamclaude.bale import Bale
+from hamclaude.telegram import Telegram
 from hamclaude.media import Media
 from hamclaude.pipeline import Pipeline, item_from_message
 from hamclaude.store import Store
@@ -18,14 +18,15 @@ STATE = {"state": "starting", "last_poll": 0, "updates": 0, "group_items": 0, "i
 def obj(x): return x if isinstance(x, dict) else {}
 
 class App:
-    def __init__(self, cfg, store, bale, pipeline):
-        self.cfg, self.store, self.bale, self.pipe = cfg, store, bale, pipeline
+    def __init__(self, cfg, store, tg, pipeline):
+        self.cfg, self.store, self.tg, self.pipe = cfg, store, tg, pipeline
         self.questions = queue.Queue()
 
     def real_author(self, m):
         """The actual sender only. Forwarded-from and quoted users never qualify."""
         sc = obj(m.get("sender_chat")); who = sc or obj(m.get("from"))
-        if not who: return False
+        if not who or who.get("is_bot"): return False
+        if not self.cfg.report_sender: return True      # no filter: any human in the configured group
         name = str(who.get("username") or "").strip().lstrip("@").casefold()
         try: sid = int(who.get("id"))
         except (TypeError, ValueError): sid = None
@@ -42,7 +43,7 @@ class App:
         cid, uid = chat.get("id"), sender.get("id")
         text = (m.get("text") or "").strip()
         if text.split("@")[0].split(" ")[0] == "/whoami":
-            self.bale.send_message(cid, f"chat_id: {cid}\nuser_id: {uid}\nusername: {sender.get('username') or '-'}")
+            self.tg.send_message(cid, f"chat_id: {cid}\nuser_id: {uid}\nusername: {sender.get('username') or '-'}")
             return
         if chat.get("type") in ("group", "supergroup"):
             if not self.cfg.group_chat_id or str(cid) != self.cfg.group_chat_id: return
@@ -58,7 +59,7 @@ class App:
             elif it and not text.startswith("/"):
                 self.questions.put(it["text"])
             elif text.split(" ")[0] in ("/start", "/help"):
-                self.bale.send_message(cid, "سلام. گزارش‌های همدل (متن، ویس، عکس، فیلم) را از گروه می‌گیرم و خلاصه و دسته‌بندی‌شده با عکس و فیلم مرتبط همین‌جا می‌فرستم. "
+                self.tg.send_message(cid, "سلام. گزارش‌های همدل (متن، ویس، عکس، فیلم) را از گروه می‌گیرم و خلاصه و دسته‌بندی‌شده با عکس و فیلم مرتبط همین‌جا می‌فرستم. "
                                        "ویس، عکس یا پیام فورواردشده را مستقیم هم می‌توانی برایم بفرستی. هر متن ساده‌ای بنویسی، دربارهٔ گزارش‌های اخیر جواب می‌دهم.")
 
     def dispatch(self, u, attempts=3, pause=1):
@@ -74,11 +75,11 @@ class App:
     def poll(self):
         while True:
             try:
-                me = self.bale.call("getMe"); logging.info("Bale identity verified: %s", me.get("username")); break
+                me = self.tg.call("getMe"); logging.info("Telegram identity verified: %s", me.get("username")); break
             except Exception: STATE["state"] = "api_unreachable"; time.sleep(15)
         while True:
             try:
-                for u in self.bale.updates(int(self.store.get("offset", "0"))):
+                for u in self.tg.updates(int(self.store.get("offset", "0"))):
                     self.dispatch(u); self.store.put("offset", u["update_id"] + 1)
                 STATE.update(state="running", last_poll=int(time.time()))
             except Exception: STATE["state"] = "retrying"; time.sleep(10)
@@ -106,13 +107,13 @@ def health(release):
     return H
 
 def build(cfg):
-    store = Store(cfg.data_dir); bale = Bale(cfg.bale_token)
-    pipe = Pipeline(cfg, store, bale, Media(cfg), {"claude": Analyst, "cloudflare": CFAnalyst}.get(cfg.provider, ClaudeCodeAnalyst)(cfg))
-    return App(cfg, store, bale, pipe)
+    store = Store(cfg.data_dir); tg = Telegram(cfg.bot_token)
+    pipe = Pipeline(cfg, store, tg, Media(cfg), {"claude": Analyst, "cloudflare": CFAnalyst}.get(cfg.provider, ClaudeCodeAnalyst)(cfg))
+    return App(cfg, store, tg, pipe)
 
 if __name__ == "__main__":
     cfg = cfgmod.load()
-    need = [("BALE_BOT_TOKEN", cfg.bale_token)] + ([("ANTHROPIC_API_KEY", cfg.anthropic_key)] if cfg.provider == "claude" else [])
+    need = [("TELEGRAM_BOT_TOKEN", cfg.bot_token)] + ([("ANTHROPIC_API_KEY", cfg.anthropic_key)] if cfg.provider == "claude" else [])
     if not cfg.gemini_key:   # speech-to-text: Gemini key, or Cloudflare as fallback
         need += [("GEMINI_API_KEY (or CLOUDFLARE_*)", cfg.cf_account and cfg.cf_token)]
     missing = [k for k, v in need if not v]
