@@ -371,3 +371,21 @@ class AgentTests(unittest.TestCase):
             def turn(s, q): return "این عکس"
         Pipeline(self.cfg, self.store, tg, FakeMedia(), None, agent=A()).answer_owner("عکسش را بفرست")
         self.assertEqual([s[0] for s in tg.sent], ["msg", "photo"]); self.assertTrue(all(s[1] == OWNER for s in tg.sent))
+
+
+class GeminiTimeoutTests(unittest.TestCase):
+    def test_timeout_on_one_model_tries_the_next(self):
+        from hamclaude.media import Media
+        urls = []
+        class R:
+            def __enter__(s): return s
+            def __exit__(s, *a): pass
+            def read(s): return json.dumps({"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}).encode()
+        def opener(req, timeout=0):
+            urls.append(req.full_url)
+            if len(urls) == 1: raise TimeoutError("read timed out")
+            return R()
+        with tempfile.TemporaryDirectory() as d:
+            seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
+            m = Media(Config(gemini_key="G"), opener=opener, run=lambda *a, **k: None); m.audio_segments = lambda p, f, seconds=90: [seg]
+            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "ok"); self.assertEqual(len(urls), 2)

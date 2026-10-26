@@ -52,7 +52,7 @@ class Media:
         if provider == "gemini": return self._gemini(path, folder)
         return self._cloudflare(path, folder)
 
-    MODELS_FALLBACK = ("gemini-3.8-flash", "gemini-flash-latest")
+    MODELS_FALLBACK = ("gemini-flash-latest", "gemini-3.8-flash")
 
     def _gemini(self, path, folder):
         cfg = self.cfg
@@ -63,8 +63,10 @@ class Media:
         for model in models:
             try:
                 text = self._gemini_with(model, segments); self._gemini_ok = model; return text
-            except urllib.error.HTTPError as e:      # model retired / not available to this key: try the next one
-                if e.code not in (400, 404): raise
+            except urllib.error.HTTPError as e:      # retired / overloaded / unavailable for this key: try the next model
+                if e.code not in (400, 404, 429, 500, 502, 503, 504): raise
+                last = e
+            except (TimeoutError, urllib.error.URLError, OSError) as e:   # slow or unreachable: try the next model
                 last = e
         raise last
 
@@ -77,7 +79,7 @@ class Media:
             req = urllib.request.Request(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", data=body,
                 headers={"x-goog-api-key": cfg.gemini_key, "Content-Type": "application/json"})
-            with self.open(req, timeout=180) as r: res = json.load(r)
+            with self.open(req, timeout=75) as r: res = json.load(r)
             parts = ((res.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
             texts.append("".join(p.get("text", "") for p in parts).strip())
         return " ".join(t for t in texts if t).strip()
