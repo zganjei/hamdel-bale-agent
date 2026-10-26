@@ -292,3 +292,23 @@ class AgentDecisionTests(unittest.TestCase):
                 def decide(self, q, reports, pending): return {"action": "report_now", "reply": ""}
             Pipeline(cfg, st, tg, FakeMedia(), A()).answer_owner("خب دیگه گزارش بده")
             self.assertEqual(st.get("flush"), "1"); self.assertTrue(tg.sent[-1][2])
+
+
+class WebhookTests(unittest.TestCase):
+    def test_signature_and_branch_filter(self):
+        import hashlib, hmac as hm, json as js, threading, urllib.request, urllib.error
+        from http.server import ThreadingHTTPServer
+        calls = []
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), main.health("t", "s3cret", lambda: calls.append(1)))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        def post(ref, secret="s3cret", event="push"):
+            body = js.dumps({"ref": ref}).encode()
+            sig = "sha256=" + hm.new(secret.encode(), body, hashlib.sha256).hexdigest()
+            req = urllib.request.Request(f"http://127.0.0.1:{srv.server_port}/github", data=body,
+                                         headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": event})
+            try: return urllib.request.urlopen(req).status
+            except urllib.error.HTTPError as e: return e.code
+        self.assertEqual(post("refs/heads/other"), 200); self.assertEqual(calls, [])
+        self.assertEqual(post("refs/heads/hamdel-claude-bot", secret="wrong"), 403); self.assertEqual(calls, [])
+        self.assertEqual(post("refs/heads/hamdel-claude-bot"), 200); self.assertEqual(calls, [1])
+        srv.shutdown()

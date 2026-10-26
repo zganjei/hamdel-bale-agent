@@ -1,5 +1,5 @@
 """Hamdel report bot for Telegram. Entry point: python main.py (single polling process)."""
-import json, logging, queue, threading, time
+import hashlib, hmac, json, logging, os, queue, subprocess, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from hamclaude import config as cfgmod
@@ -104,8 +104,26 @@ class App:
             try: self.pipe.answer_owner(q)
             except Exception: logging.warning("Question failed; no content logged")
 
-def health(release):
+def webhook_ok(secret, body, signature):
+    """GitHub signs the raw body with HMAC-SHA256 using the webhook secret."""
+    if not secret or not signature: return False
+    return hmac.compare_digest("sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest(), signature)
+
+def start_update():
+    subprocess.Popen(["sudo", "-n", "/bin/systemctl", "start", "--no-block", "hamdel-update.service"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def health(release, secret="", on_update=start_update):
     class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            if self.path != "/github": self.send_error(404); return
+            body = self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1_000_000))
+            if not webhook_ok(secret, body, self.headers.get("X-Hub-Signature-256", "")): self.send_error(403); return
+            if self.headers.get("X-GitHub-Event") == "push":
+                try: ref = json.loads(body).get("ref")
+                except ValueError: ref = None
+                if ref == "refs/heads/hamdel-claude-bot": on_update()
+            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
         def do_GET(self):
             if self.path not in ("/", "/health"): self.send_error(404); return
             body = json.dumps({"service": "hamdel-claude-bot", "release": release, **STATE}).encode()
@@ -128,4 +146,4 @@ if __name__ == "__main__":
     app = build(cfg)
     rel = json.loads(Path("release.json").read_text()).get("commit", "local") if Path("release.json").exists() else "local"
     for target in (app.poll, app.worker, app.chatter): threading.Thread(target=target, daemon=True).start()
-    ThreadingHTTPServer(("0.0.0.0", cfg.port), health(rel)).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", cfg.port), health(rel, os.environ.get("GITHUB_WEBHOOK_SECRET", ""))).serve_forever()
