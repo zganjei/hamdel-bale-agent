@@ -164,8 +164,13 @@ class Pipeline:
             self.store.put("flush", "1"); d["reply"] = d["reply"] or "گزارش را آماده می‌کنم؛ چند دقیقه صبر کن."
         self.tg.send_message(owner, d["reply"] or "پاسخی دریافت نشد.")
 
+    def dest(self):
+        """Chat of the latest owner request (private chat or a group where the owner addressed the bot)."""
+        try: return int(self.store.get("reply_chat", "") or self.cfg.owner_id)
+        except (TypeError, ValueError): return int(self.cfg.owner_id)
+
     def agent_turn(self, question):
-        owner = int(self.cfg.owner_id)
+        owner = self.dest()
         try: self.tg.call("sendChatAction", {"chat_id": owner, "action": "typing"})
         except Exception: pass
         try: reply = self.agent.turn(question)
@@ -176,7 +181,7 @@ class Pipeline:
 
     def pump_outbox(self):
         """Send queued text and files to the owner (from the agent's tools and background jobs)."""
-        owner = int(self.cfg.owner_id)
+        owner = self.dest()
         with self.outbox_lock:
             for f in self.store.take_outbox():
                 try:
