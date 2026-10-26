@@ -29,6 +29,17 @@ def item_from_message(m, origin):
             "file_id": f.get("file_id", ""), "filename": f.get("file_name") or "", "size": f.get("file_size") or 0,
             "duration": f.get("duration") or 0, "text": text}
 
+def reason(e):
+    """Short, content-free cause of a failure (HTTP status and the provider's error message, or the exception type)."""
+    code = getattr(e, "code", None)
+    if code:
+        try:
+            msg = json.loads(e.read().decode("utf-8", "replace")).get("error", {})
+            msg = msg.get("message") if isinstance(msg, dict) else str(msg)
+        except Exception: msg = ""
+        return f"HTTP {code}: {str(msg or e.reason)[:140]}"
+    return (type(e).__name__ + ": " + str(e))[:140]
+
 class Pipeline:
     def __init__(self, cfg, store, tg, media, analyst, sleep=time.sleep):
         self.cfg, self.store, self.tg, self.media, self.analyst, self.sleep = cfg, store, tg, media, analyst, sleep
@@ -59,7 +70,8 @@ class Pipeline:
                     self.store.update_item(it["chat"], it["msg_id"], raw_asr=it["raw_asr"])
                     if not it["raw_asr"] and it["kind"] != "video": self._note(it, "گفتاری تشخیص داده نشد.")
                 except Exception as e:
-                    if it["kind"] != "video": self._note(it, "تبدیل صوت به متن انجام نشد؛ فایل صوتی برای شنیدن ضمیمه می‌شود.")
+                    why = reason(e); logging.warning("ASR failed: %s", why)
+                    if it["kind"] != "video": self._note(it, f"تبدیل صوت به متن انجام نشد ({why}); فایل صوتی برای شنیدن ضمیمه می‌شود.")
         except Exception:
             self._note(it, "پردازش تصویر یا صوت کامل نشد.")
         return it

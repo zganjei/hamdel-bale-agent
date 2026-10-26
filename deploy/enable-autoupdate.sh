@@ -21,4 +21,4 @@ WantedBy=timers.target
 U
 systemctl daemon-reload; systemctl enable --now hamdel-update.timer
 systemctl start hamdel-update.service || true
-journalctl -u hamdel-update.service -n 5 --no-pager
+journalctl -u hamdel-update.service -n 5 --no-pager; echo ---; journalctl -u hamdel -n 15 --no-pager | cut -c1-200
