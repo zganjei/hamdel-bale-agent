@@ -111,8 +111,9 @@ def webhook_ok(secret, body, signature):
     return hmac.compare_digest("sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest(), signature)
 
 def start_update():
-    subprocess.Popen(["sudo", "-n", "/bin/systemctl", "start", "--no-block", "hamdel-update.service"],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    """Ask the root-owned systemd path unit to run the updater (the bot itself has no privileges)."""
+    try: Path(os.environ.get("UPDATE_TRIGGER", "/opt/hamdel/update.trigger")).write_text(str(time.time()))
+    except OSError as e: logging.warning("Could not request update: %s", type(e).__name__)
 
 def health(release, secret="", on_update=start_update):
     class H(BaseHTTPRequestHandler):

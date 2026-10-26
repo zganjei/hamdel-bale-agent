@@ -3,6 +3,12 @@
 set -euo pipefail
 R=zganjei/hamdel-bale-agent; B=hamdel-claude-bot; D=/opt/hamdel
 GH=$(cat $D/gh-token)
+# The bot (NoNewPrivileges, no sudo) requests an update by touching a file; this path unit starts the updater.
+if [ ! -f /etc/systemd/system/hamdel-update.path ]; then
+  printf '[Unit]\nDescription=Update request from the Hamdel bot\n[Path]\nPathModified=%s/update.trigger\nUnit=hamdel-update.service\n[Install]\nWantedBy=multi-user.target\n' "$D" > /etc/systemd/system/hamdel-update.path
+  : > $D/update.trigger; chown hamdel:hamdel $D/update.trigger
+  systemctl daemon-reload; systemctl enable --now hamdel-update.path
+fi
 sha=$(curl -fsS -H "Authorization: Bearer $GH" -H "Accept: application/vnd.github.sha" "https://api.github.com/repos/$R/commits/$B")
 [ -n "$sha" ] || exit 1
 [ "$sha" = "$(cat $D/version 2>/dev/null || true)" ] && exit 0
