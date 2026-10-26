@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS items(
 CREATE TABLE IF NOT EXISTS reports(
   id INTEGER PRIMARY KEY AUTOINCREMENT, created INTEGER, status TEXT DEFAULT 'open', attempts INTEGER DEFAULT 0,
   result TEXT DEFAULT '', parts TEXT DEFAULT '', delivered INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, path TEXT, caption TEXT DEFAULT '', created INTEGER);
 """
 
 class Store:
@@ -56,6 +57,13 @@ class Store:
             rid = c.execute("INSERT INTO reports(created,status) VALUES(?,'pending')", (now,)).lastrowid
             c.execute("UPDATE items SET report_id=? WHERE report_id IS NULL", (rid,)); c.commit()
         return rid
+
+    def queue_file(self, kind, path, caption=""):
+        self.q("INSERT INTO outbox(kind,path,caption,created) VALUES(?,?,?,?)", (kind, str(path), caption[:900], int(time.time())), write=True)
+    def take_outbox(self):
+        rows = [dict(r) for r in self.q("SELECT * FROM outbox ORDER BY id")]
+        for r in rows: self.q("DELETE FROM outbox WHERE id=?", (r["id"],), write=True)
+        return rows
 
     def pending_count(self): return self.q("SELECT count(*) n FROM items WHERE report_id IS NULL", one=True)["n"]
 

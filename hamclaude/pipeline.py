@@ -41,8 +41,8 @@ def reason(e):
     return (type(e).__name__ + ": " + str(e))[:140]
 
 class Pipeline:
-    def __init__(self, cfg, store, tg, media, analyst, sleep=time.sleep):
-        self.cfg, self.store, self.tg, self.media, self.analyst, self.sleep = cfg, store, tg, media, analyst, sleep
+    def __init__(self, cfg, store, tg, media, analyst, sleep=time.sleep, agent=None):
+        self.cfg, self.store, self.tg, self.media, self.analyst, self.sleep, self.agent = cfg, store, tg, media, analyst, sleep, agent
 
     # ---- preparation -------------------------------------------------
     def prepare(self, it):
@@ -151,6 +151,7 @@ class Pipeline:
         self.store.set_report(rid, status="done"); return True
 
     def answer_owner(self, question):
+        if self.agent: return self.agent_turn(question)
         owner, pending, reports = int(self.cfg.owner_id), self.store.pending_count(), self.store.recent_reports()
         if not reports and not pending:
             self.tg.send_message(owner, "هنوز چیزی از همدل برایم نفرستاده‌ای. ویس، عکس یا پیام را بفرست؛ خودم گزارش را می‌سازم."); return
@@ -161,3 +162,15 @@ class Pipeline:
         if d["action"] == "report_now" and pending:
             self.store.put("flush", "1"); d["reply"] = d["reply"] or "گزارش را آماده می‌کنم؛ چند دقیقه صبر کن."
         self.tg.send_message(owner, d["reply"] or "پاسخی دریافت نشد.")
+
+    def agent_turn(self, question):
+        owner = int(self.cfg.owner_id)
+        try: self.tg.call("sendChatAction", {"chat_id": owner, "action": "typing"})
+        except Exception: pass
+        try: reply = self.agent.turn(question)
+        except Exception as e:
+            logging.warning("Agent turn failed: %s", reason(e)); reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بنویس."
+        self.tg.send_message(owner, reply)
+        for f in self.store.take_outbox():
+            try: self.tg.send_file(owner, f["kind"], f["path"], f["caption"])
+            except Exception as e: logging.warning("Agent file send failed: %s", reason(e))

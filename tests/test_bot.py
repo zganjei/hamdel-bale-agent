@@ -1,4 +1,4 @@
-import base64, json, tempfile, time, unittest, urllib.error
+import base64, json, os, tempfile, time, unittest, urllib.error
 from pathlib import Path
 import main
 from hamclaude.analyst import Analyst, guard_transcript
@@ -334,3 +334,40 @@ class GeminiFallbackTests(unittest.TestCase):
             m.audio_segments = lambda p, f, seconds=90: [seg]
             self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "متن"); self.assertEqual(m._gemini_ok, "gemini-3.8-flash")
             n = len(urls); m.transcribe(Path(d) / "a.ogg", d); self.assertEqual(len(urls) - n, 1)
+
+
+class AgentTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.cfg = Config(data_dir=self.tmp.name, owner_id=str(OWNER)); self.store = Store(self.tmp.name)
+    def tearDown(self): self.tmp.cleanup()
+
+    def fake(self, calls, fail_resume=False):
+        class P: pass
+        def run(cmd, **kw):
+            calls.append((cmd, kw)); p = P(); p.returncode = 0
+            if fail_resume and "--resume" in cmd: p.returncode = 1; p.stdout = "{}"; return p
+            p.stdout = json.dumps({"result": "جواب", "session_id": "S1"}); return p
+        return run
+
+    def test_session_is_resumed_and_env_has_no_telegram_token(self):
+        from hamclaude.agent import Agent
+        calls = []; a = Agent(self.cfg, self.store, run=self.fake(calls))
+        os.environ["TELEGRAM_BOT_TOKEN"] = "SECRET"
+        try:
+            self.assertEqual(a.turn("سلام"), "جواب"); a.turn("باز هم")
+        finally: os.environ.pop("TELEGRAM_BOT_TOKEN")
+        self.assertNotIn("--resume", calls[0][0]); self.assertEqual(calls[1][0][calls[1][0].index("--resume") + 1], "S1")
+        self.assertNotIn("TELEGRAM_BOT_TOKEN", calls[0][1]["env"]); self.assertIn("--settings", calls[0][0])
+
+    def test_stale_session_starts_a_new_one(self):
+        from hamclaude.agent import Agent
+        self.store.put("agent_session", "OLD"); calls = []
+        self.assertEqual(Agent(self.cfg, self.store, run=self.fake(calls, fail_resume=True)).turn("سلام"), "جواب")
+        self.assertEqual(len(calls), 2); self.assertNotIn("--resume", calls[1][0])
+
+    def test_reply_then_queued_media_reach_only_the_owner(self):
+        tg = FakeTG(); p = Path(self.tmp.name) / "a.jpg"; p.write_bytes(JPEG); self.store.queue_file("photo", p, "عکس")
+        class A:
+            def turn(s, q): return "این عکس"
+        Pipeline(self.cfg, self.store, tg, FakeMedia(), None, agent=A()).answer_owner("عکسش را بفرست")
+        self.assertEqual([s[0] for s in tg.sent], ["msg", "photo"]); self.assertTrue(all(s[1] == OWNER for s in tg.sent))

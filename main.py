@@ -3,6 +3,7 @@ import hashlib, hmac, json, logging, os, queue, subprocess, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from hamclaude import config as cfgmod
+from hamclaude.agent import Agent
 from hamclaude.analyst import Analyst
 from hamclaude.cf_analyst import CFAnalyst
 from hamclaude.cc_analyst import ClaudeCodeAnalyst
@@ -133,7 +134,8 @@ def health(release, secret="", on_update=start_update):
 
 def build(cfg):
     store = Store(cfg.data_dir); tg = Telegram(cfg.bot_token)
-    pipe = Pipeline(cfg, store, tg, Media(cfg), {"claude": Analyst, "cloudflare": CFAnalyst}.get(cfg.provider, ClaudeCodeAnalyst)(cfg))
+    pipe = Pipeline(cfg, store, tg, Media(cfg), {"claude": Analyst, "cloudflare": CFAnalyst}.get(cfg.provider, ClaudeCodeAnalyst)(cfg),
+                    agent=Agent(cfg, store) if cfg.provider == "claudecode" else None)
     return App(cfg, store, tg, pipe)
 
 if __name__ == "__main__":
