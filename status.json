@@ -1,7 +1,7 @@
 {
- "time_utc": "2026-10-26 13:55:44",
+ "time_utc": "2026-10-26 13:55:59",
  "state": "rejected",
- "target_sha": "dc90104d8340f6a36fabad285801b795d53fae4d",
+ "target_sha": "2ed9ca5bc2f5ef80b46daf772f7bdb587d69fbb8",
  "message": "tests failed on the server",
  "installed_sha": "3a84654c569295a4297fc6d2b7513a700bba64cc",
  "health": {
@@ -33,6 +33,10 @@
   "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot"
  ],
  "updater_log": [
-  "tests failed for dc90104d8340f6a36fabad285801b795d53fae4d; keeping current version"
+  "tests failed for dc90104d8340f6a36fabad285801b795d53fae4d; keeping current version",
+  "hamdel-update.service: Main process exited, code=exited, status=1/FAILURE",
+  "hamdel-update.service: Failed with result 'exit-code'.",
+  "Failed to start hamdel-update.service - Update Hamdel bot from GitHub.",
+  "tests failed for 2ed9ca5bc2f5ef80b46daf772f7bdb587d69fbb8; keeping current version"
  ]
 }
