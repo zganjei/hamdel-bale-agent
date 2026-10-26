@@ -1,5 +1,5 @@
 """Intake of Telegram messages, report preparation and delivery to the owner's private chat."""
-import json, logging, time
+import json, logging, threading, time
 from pathlib import Path
 
 VOICE = ("voice", "audio", "video_note")
@@ -43,6 +43,7 @@ def reason(e):
 class Pipeline:
     def __init__(self, cfg, store, tg, media, analyst, sleep=time.sleep, agent=None):
         self.cfg, self.store, self.tg, self.media, self.analyst, self.sleep, self.agent = cfg, store, tg, media, analyst, sleep, agent
+        self.outbox_lock = threading.Lock()
 
     # ---- preparation -------------------------------------------------
     def prepare(self, it):
@@ -171,6 +172,14 @@ class Pipeline:
         except Exception as e:
             logging.warning("Agent turn failed: %s", reason(e)); reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بنویس."
         self.tg.send_message(owner, reply)
-        for f in self.store.take_outbox():
-            try: self.tg.send_file(owner, f["kind"], f["path"], f["caption"])
-            except Exception as e: logging.warning("Agent file send failed: %s", reason(e))
+        self.pump_outbox()
+
+    def pump_outbox(self):
+        """Send queued text and files to the owner (from the agent's tools and background jobs)."""
+        owner = int(self.cfg.owner_id)
+        with self.outbox_lock:
+            for f in self.store.take_outbox():
+                try:
+                    if f["kind"] == "text": self.tg.send_message(owner, f["caption"])
+                    else: self.tg.send_file(owner, f["kind"], f["path"], f["caption"][:900])
+                except Exception as e: logging.warning("Outbox send failed: %s", reason(e))

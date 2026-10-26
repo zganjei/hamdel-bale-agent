@@ -96,6 +96,7 @@ class App:
                 flush = self.store.get("flush") == "1"
                 if flush: self.store.put("flush", "0")
                 self.store.close_ready(0 if flush else self.cfg.quiet_seconds)
+                if self.cfg.owner_id: self.pipe.pump_outbox()
                 if not self.pipe.process_next(): time.sleep(2)
             except Exception: logging.warning("Worker retrying; no content logged"); time.sleep(5)
 

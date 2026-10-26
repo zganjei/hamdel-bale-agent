@@ -59,7 +59,8 @@ class Store:
         return rid
 
     def queue_file(self, kind, path, caption=""):
-        self.q("INSERT INTO outbox(kind,path,caption,created) VALUES(?,?,?,?)", (kind, str(path), caption[:900], int(time.time())), write=True)
+        self.q("INSERT INTO outbox(kind,path,caption,created) VALUES(?,?,?,?)", (kind, str(path), caption[:3500], int(time.time())), write=True)
+    def queue_text(self, text): self.queue_file("text", "", text[:3500])
     def take_outbox(self):
         rows = [dict(r) for r in self.q("SELECT * FROM outbox ORDER BY id")]
         for r in rows: self.q("DELETE FROM outbox WHERE id=?", (r["id"],), write=True)

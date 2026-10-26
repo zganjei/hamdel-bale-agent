@@ -389,3 +389,20 @@ class GeminiTimeoutTests(unittest.TestCase):
             seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
             m = Media(Config(gemini_key="G"), opener=opener, run=lambda *a, **k: None); m.audio_segments = lambda p, f, seconds=90: [seg]
             self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "ok"); self.assertEqual(len(urls), 2)
+
+
+class CtlJobTests(unittest.TestCase):
+    def test_image_and_login_commands_spawn_background_jobs_and_text_is_queued(self):
+        from hamclaude import ctl
+        with tempfile.TemporaryDirectory() as d:
+            st = Store(d); spawned = []
+            ctl.main(["image", "a", "calm", "lake"], st, spawn=spawned.append); ctl.main(["codex-login"], st, spawn=spawned.append)
+            self.assertEqual(spawned, [["_image", "a calm lake"], ["_codex_login"]])
+            st.queue_text("hi"); rows = st.take_outbox(); self.assertEqual((rows[0]["kind"], rows[0]["caption"]), ("text", "hi")); self.assertEqual(st.take_outbox(), [])
+
+    def test_pump_sends_text_and_files_to_owner_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(data_dir=d, owner_id=str(OWNER)); st = Store(d); tg = FakeTG(); p = Path(d) / "x.png"; p.write_bytes(JPEG)
+            st.queue_text("لینک"); st.queue_file("photo", p, "تصویرسازی")
+            Pipeline(cfg, st, tg, FakeMedia(), None).pump_outbox()
+            self.assertEqual([s[0] for s in tg.sent], ["msg", "photo"]); self.assertTrue(all(s[1] == OWNER for s in tg.sent))
