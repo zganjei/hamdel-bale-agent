@@ -332,7 +332,7 @@ class GeminiFallbackTests(unittest.TestCase):
             seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
             m = Media(Config(gemini_key="G", gemini_model="gemini-2.5-flash"), opener=opener, run=lambda *a, **k: None)
             m.audio_segments = lambda p, f, seconds=90: [seg]
-            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "متن"); self.assertEqual(m._gemini_ok, "gemini-3.8-flash")
+            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "متن"); self.assertEqual(m._gemini_ok, "gemini-flash-latest")
             n = len(urls); m.transcribe(Path(d) / "a.ogg", d); self.assertEqual(len(urls) - n, 1)
 
 
