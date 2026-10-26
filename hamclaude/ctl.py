@@ -97,6 +97,9 @@ def main(argv, store=None, spawn=None):
         st.queue_file(KINDS.get(r["kind"], "document"), r["path"], " ".join(args[1:]) or f"آیتم {args[0]}")
         out({"queued": int(args[0])})
     elif cmd == "image":
+        cx = find_codex()
+        if not cx or subprocess.run([cx, "login", "status"], capture_output=True, timeout=60).returncode != 0:
+            return out({"error": "ChatGPT is not connected yet. Run `codex-login` first (link and code go to the owner), then try again after the owner confirms."})
         (spawn or spawn_detached)(["_image", " ".join(args)]); out({"started": "image is being made; it will arrive in the chat by itself in a few minutes"})
     elif cmd == "codex-login":
         (spawn or spawn_detached)(["_codex_login"]); out({"started": "the link and code are being sent to the owner"})

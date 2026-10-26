@@ -1,5 +1,5 @@
 """ffmpeg helpers and Cloudflare Whisper ASR. Both are injectable so tests need no binaries or network."""
-import base64, json, subprocess, urllib.error, urllib.request
+import base64, json, subprocess, time, urllib.error, urllib.request
 from pathlib import Path
 
 ASR_PROMPT = ("گفتار فارسی محاوره‌ای دربارهٔ کار خیریه: کمک، واریز، تومان، کرون، خانواده، نیازمند، "
@@ -53,14 +53,31 @@ class Media:
         return self._cloudflare(path, folder)
 
     MODELS_FALLBACK = ("gemini-flash-latest", "gemini-3.8-flash")
+    SKIP = ("image", "tts", "live", "embed", "aqa", "imagen", "veo", "robotics", "computer", "audio", "customtools")
 
-    def _gemini(self, path, folder):
+    def gemini_models(self):
+        """Models this key can really use for generateContent (discovered from the API, newest 'flash' first)."""
+        req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                                     headers={"x-goog-api-key": self.cfg.gemini_key})
+        with self.open(req, timeout=20) as r: items = json.load(r).get("models", [])
+        names = [m["name"].split("/")[-1] for m in items if "generateContent" in m.get("supportedGenerationMethods", [])]
+        return sorted((n for n in names if "flash" in n and not any(k in n for k in self.SKIP)), reverse=True)
+
+    def _gemini(self, path, folder, budget=240):
         cfg = self.cfg
         if not cfg.gemini_key: raise RuntimeError("asr_not_configured")
         segments = self.audio_segments(path, folder, seconds=300)
-        models = [getattr(self, "_gemini_ok", None) or cfg.gemini_model] + [m for m in self.MODELS_FALLBACK if m != cfg.gemini_model]
-        last = None
-        for model in models:
+        tried, last, end = set(), None, time.time() + budget
+        queue = [getattr(self, "_gemini_ok", None) or cfg.gemini_model, *self.MODELS_FALLBACK]; discovered = False
+        while time.time() < end:
+            model = next((m for m in queue if m not in tried), None)
+            if model is None:
+                if discovered: break
+                discovered = True
+                try: queue += [m for m in self.gemini_models() if m not in queue]
+                except Exception as e: last = last or e
+                continue
+            tried.add(model)
             try:
                 text = self._gemini_with(model, segments); self._gemini_ok = model; return text
             except urllib.error.HTTPError as e:      # retired / overloaded / unavailable for this key: try the next model
@@ -68,7 +85,7 @@ class Media:
                 last = e
             except (TimeoutError, urllib.error.URLError, OSError) as e:   # slow or unreachable: try the next model
                 last = e
-        raise last
+        raise last or RuntimeError("asr_failed")
 
     def _gemini_with(self, model, segments):
         cfg = self.cfg; texts = []

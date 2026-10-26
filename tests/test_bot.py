@@ -396,7 +396,7 @@ class CtlJobTests(unittest.TestCase):
     def test_image_and_login_commands_spawn_background_jobs_and_text_is_queued(self):
         from hamclaude import ctl
         with tempfile.TemporaryDirectory() as d:
-            st = Store(d); spawned = []
+            st = Store(d); spawned = []; ctl.find_codex = lambda env=None: "/bin/true"        # `true login status` exits 0 = logged in
             ctl.main(["image", "a", "calm", "lake"], st, spawn=spawned.append); ctl.main(["codex-login"], st, spawn=spawned.append)
             self.assertEqual(spawned, [["_image", "a calm lake"], ["_codex_login"]])
             st.queue_text("hi"); rows = st.take_outbox(); self.assertEqual((rows[0]["kind"], rows[0]["caption"]), ("text", "hi")); self.assertEqual(st.take_outbox(), [])
@@ -431,3 +431,26 @@ class EagerPrepareTests(unittest.TestCase):
             self.assertIsNone(st.unprepared())
             from hamclaude import ctl
             ctl.main(["item", "8"], st)
+
+
+class GeminiDiscoveryTests(unittest.TestCase):
+    def test_unknown_models_are_discovered_from_the_api(self):
+        import io, urllib.error
+        from hamclaude.media import Media
+        calls = []
+        class R:
+            def __init__(s, d): s.d = d
+            def __enter__(s): return s
+            def __exit__(s, *a): pass
+            def read(s): return s.d
+        def opener(req, timeout=0):
+            calls.append(req.full_url)
+            if req.full_url.endswith("/models?pageSize=200"):
+                return R(json.dumps({"models": [{"name": "models/gemini-9-flash", "supportedGenerationMethods": ["generateContent"]},
+                                                 {"name": "models/gemini-9-flash-image", "supportedGenerationMethods": ["generateContent"]}]}).encode())
+            if "gemini-9-flash:generate" in req.full_url: return R(json.dumps({"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}).encode())
+            raise urllib.error.HTTPError(req.full_url, 404, "gone", {}, io.BytesIO(b"{}"))
+        with tempfile.TemporaryDirectory() as d:
+            seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
+            m = Media(Config(gemini_key="G"), opener=opener, run=lambda *a, **k: None); m.audio_segments = lambda p, f, seconds=90: [seg]
+            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "ok"); self.assertFalse(any("image:generate" in c for c in calls))
