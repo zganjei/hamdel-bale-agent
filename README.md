@@ -21,3 +21,6 @@
 
 ## آنچه تست نشده
 تست‌ها با Telegram، Cloudflare و Claude ساختگی‌اند؛ دستورهای ffmpeg روی فایل واقعی آزمایش شدند. کیفیت فارسی مدل‌های رایگان، تشخیص گفتار محاوره‌ای روی ویس واقعی، قالب پاسخ مدل‌های Cloudflare (متن و بینایی) و پارامترهای Whisper هنوز آزمایش نشده است.
+
+## Deploy status
+The server publishes `status.json` to the `deploy-status` branch after every update and every 30 minutes.
