@@ -12,3 +12,7 @@ __pycache__/
 liara-tools/
 .venv/
 dist/
+
+# Local Claude Code settings and private developer context
+.claude/settings.local.json
+CLAUDE.local.md
