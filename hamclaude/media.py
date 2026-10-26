@@ -1,5 +1,5 @@
 """ffmpeg helpers and Cloudflare Whisper ASR. Both are injectable so tests need no binaries or network."""
-import base64, json, subprocess, urllib.request
+import base64, json, subprocess, urllib.error, urllib.request
 from pathlib import Path
 
 ASR_PROMPT = ("گفتار فارسی محاوره‌ای دربارهٔ کار خیریه: کمک، واریز، تومان، کرون، خانواده، نیازمند، "
@@ -52,16 +52,30 @@ class Media:
         if provider == "gemini": return self._gemini(path, folder)
         return self._cloudflare(path, folder)
 
+    MODELS_FALLBACK = ("gemini-3.8-flash", "gemini-flash-latest")
+
     def _gemini(self, path, folder):
         cfg = self.cfg
         if not cfg.gemini_key: raise RuntimeError("asr_not_configured")
-        texts = []
-        for seg in self.audio_segments(path, folder, seconds=300):
+        segments = self.audio_segments(path, folder, seconds=300)
+        models = [getattr(self, "_gemini_ok", None) or cfg.gemini_model] + [m for m in self.MODELS_FALLBACK if m != cfg.gemini_model]
+        last = None
+        for model in models:
+            try:
+                text = self._gemini_with(model, segments); self._gemini_ok = model; return text
+            except urllib.error.HTTPError as e:      # model retired / not available to this key: try the next one
+                if e.code not in (400, 404): raise
+                last = e
+        raise last
+
+    def _gemini_with(self, model, segments):
+        cfg = self.cfg; texts = []
+        for seg in segments:
             body = json.dumps({"contents": [{"parts": [{"text": GEMINI_PROMPT},
                 {"inline_data": {"mime_type": "audio/mp3", "data": base64.b64encode(seg.read_bytes()).decode()}}]}],
                 "generationConfig": {"temperature": 0}}).encode()
             req = urllib.request.Request(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{cfg.gemini_model}:generateContent", data=body,
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", data=body,
                 headers={"x-goog-api-key": cfg.gemini_key, "Content-Type": "application/json"})
             with self.open(req, timeout=180) as r: res = json.load(r)
             parts = ((res.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []

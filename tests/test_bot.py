@@ -312,3 +312,25 @@ class WebhookTests(unittest.TestCase):
         self.assertEqual(post("refs/heads/hamdel-claude-bot", secret="wrong"), 403); self.assertEqual(calls, [])
         self.assertEqual(post("refs/heads/hamdel-claude-bot"), 200); self.assertEqual(calls, [1])
         srv.shutdown()
+
+
+class GeminiFallbackTests(unittest.TestCase):
+    def test_retired_model_falls_back_and_is_remembered(self):
+        import io, urllib.error
+        from hamclaude.media import Media
+        urls = []
+        class R:
+            def __enter__(s): return s
+            def __exit__(s, *a): pass
+            def read(s): return json.dumps({"candidates": [{"content": {"parts": [{"text": "متن"}]}}]}).encode()
+        def opener(req, timeout=0):
+            urls.append(req.full_url)
+            if "gemini-2.5-flash" in req.full_url:
+                raise urllib.error.HTTPError(req.full_url, 404, "gone", {}, io.BytesIO(b"{}"))
+            return R()
+        with tempfile.TemporaryDirectory() as d:
+            seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
+            m = Media(Config(gemini_key="G", gemini_model="gemini-2.5-flash"), opener=opener, run=lambda *a, **k: None)
+            m.audio_segments = lambda p, f, seconds=90: [seg]
+            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "متن"); self.assertEqual(m._gemini_ok, "gemini-3.8-flash")
+            n = len(urls); m.transcribe(Path(d) / "a.ogg", d); self.assertEqual(len(urls) - n, 1)
