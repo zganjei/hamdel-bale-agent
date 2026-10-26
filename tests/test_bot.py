@@ -68,6 +68,13 @@ class IntakeTests(Base):
     def test_only_real_sender_in_bound_group_is_collected(self):
         for u in (voice(1), voice(2, user="someone", uid=9), photo(3), voice(4, chat=-555)): self.app.dispatch(u)
         self.assertEqual(main.STATE["group_items"], 2); self.assertEqual(main.STATE["ignored_group"], 1)
+    def test_owner_mention_in_any_group_goes_to_agent(self):
+        self.app.bot_username = "hamdel_reporter_bot"
+        mk = lambda uid, t, chat=-777: {"update_id": 1, "message": {"message_id": 1, "chat": {"id": chat, "type": "supergroup"}, "from": {"id": uid, "username": "u"}, "text": t}}
+        self.app.dispatch(mk(OWNER, "@hamdel_reporter_bot یک عکس بساز"))
+        self.assertEqual(self.app.questions.get_nowait(), "یک عکس بساز")
+        self.app.dispatch(mk(9, "@hamdel_reporter_bot سلام")); self.app.dispatch(mk(OWNER, "بدون منشن"))
+        self.assertTrue(self.app.questions.empty())
     def test_forwarded_copy_by_other_sender_is_not_real_author(self):
         u = voice(5, user="someone", uid=9); u["message"]["forward_from"] = {"username": "motahari58", "id": 7}
         self.app.dispatch(u); self.assertEqual(main.STATE["group_items"], 0)

@@ -26,6 +26,7 @@ class App:
     def __init__(self, cfg, store, tg, pipeline):
         self.cfg, self.store, self.tg, self.pipe = cfg, store, tg, pipeline
         self.questions = queue.Queue()
+        self.bot_username = ""
 
     def real_author(self, m):
         """The actual sender only. Forwarded-from and quoted users never qualify."""
@@ -40,6 +41,13 @@ class App:
             return True
         return bool(sid and self.store.is_known_sender(self.cfg.report_sender, sid))
 
+    def addressed(self, m, text):
+        """True when the group message mentions this bot or replies to one of its messages."""
+        name = (self.bot_username or "").casefold()
+        if name and ("@" + name) in text.casefold(): return True
+        r = obj(m.get("reply_to_message"))
+        return bool(r and obj(r.get("from")).get("is_bot") and str(obj(r.get("from")).get("username") or "").casefold() == name)
+
     def handle(self, u):
         m = u.get("message")
         if not isinstance(m, dict): return
@@ -51,6 +59,11 @@ class App:
             self.tg.send_message(cid, f"chat_id: {cid}\nuser_id: {uid}\nusername: {sender.get('username') or '-'}")
             return
         if chat.get("type") in ("group", "supergroup"):
+            if self.cfg.owner_id and str(uid) == self.cfg.owner_id and self.addressed(m, text):
+                q = re.sub(r"@\w*bot\b", "", text, flags=re.I).strip() or "سلام"
+                self.questions.put(q)                # the agent answers in the owner's private chat, so group members never see report data
+                self.tg.send_message(cid, "گرفتم؛ جواب را در چت خصوصی می‌فرستم.")
+                return
             if not self.cfg.group_chat_id or str(cid) != self.cfg.group_chat_id: return
             if not self.real_author(m): STATE["ignored_group"] += 1; return
             it = item_from_message(m, "group")
@@ -93,7 +106,7 @@ class App:
     def poll(self):
         while True:
             try:
-                me = self.tg.call("getMe"); logging.info("Telegram identity verified: %s", me.get("username")); break
+                me = self.tg.call("getMe"); self.bot_username = me.get("username") or ""; logging.info("Telegram identity verified: %s", me.get("username")); break
             except Exception: STATE["state"] = "api_unreachable"; time.sleep(15)
         while True:
             try:
