@@ -36,9 +36,11 @@ class Agent:
         self.home = Path(cfg.data_dir).resolve() / "agent"; self.home.mkdir(parents=True, exist_ok=True)
         self.ctl = str(Path(__file__).resolve().parent.parent / "hamctl.py")
 
+    def prompt_hash(self): return hashlib.sha1((SYSTEM + self.ctl).encode()).hexdigest()[:12]
+
     def turn(self, text):
         sid = self.store.get("agent_session")
-        h = hashlib.sha1((SYSTEM + self.ctl).encode()).hexdigest()[:12]
+        h = self.prompt_hash()
         if self.store.get("agent_prompt") != h:       # instructions/tools changed: old conversation would anchor on the old abilities
             sid = ""; self.store.put("agent_prompt", h); self.store.put("agent_session", "")
         pend = self.store.pending_count()

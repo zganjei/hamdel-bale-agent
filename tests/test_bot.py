@@ -351,7 +351,7 @@ class AgentTests(unittest.TestCase):
 
     def test_session_is_resumed_and_env_has_no_telegram_token(self):
         from hamclaude.agent import Agent
-        calls = []; a = Agent(self.cfg, self.store, run=self.fake(calls))
+        calls = []; a = Agent(self.cfg, self.store, run=self.fake(calls)); self.store.put("agent_prompt", a.prompt_hash())
         os.environ["TELEGRAM_BOT_TOKEN"] = "SECRET"
         try:
             self.assertEqual(a.turn("سلام"), "جواب"); a.turn("باز هم")
@@ -361,8 +361,9 @@ class AgentTests(unittest.TestCase):
 
     def test_stale_session_starts_a_new_one(self):
         from hamclaude.agent import Agent
-        self.store.put("agent_session", "OLD"); calls = []
-        self.assertEqual(Agent(self.cfg, self.store, run=self.fake(calls, fail_resume=True)).turn("سلام"), "جواب")
+        self.store.put("agent_session", "OLD"); calls = []; a = Agent(self.cfg, self.store, run=self.fake(calls, fail_resume=True))
+        self.store.put("agent_prompt", a.prompt_hash())
+        self.assertEqual(a.turn("سلام"), "جواب")
         self.assertEqual(len(calls), 2); self.assertNotIn("--resume", calls[1][0])
 
     def test_reply_then_queued_media_reach_only_the_owner(self):
