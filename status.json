@@ -1,0 +1,36 @@
+{
+ "time_utc": "2026-10-26 13:55:41",
+ "state": "heartbeat",
+ "target_sha": "",
+ "message": "",
+ "installed_sha": "3a84654c569295a4297fc6d2b7513a700bba64cc",
+ "health": {
+  "service": "hamdel-claude-bot",
+  "release": "3a84654c569295a4297fc6d2b7513a700bba64cc",
+  "state": "running",
+  "last_poll": 1793022938,
+  "updates": 1,
+  "group_items": 0,
+  "ignored_group": 0,
+  "private_items": 0,
+  "handler_errors": 0,
+  "skipped_updates": 0,
+  "last_error": "none"
+ },
+ "bot_log": [
+  "2026-10-26 13:02:31,183 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:26:15,963 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:30:21,485 ASR failed: HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the lates",
+  "2026-10-26 13:32:27,127 ASR failed: HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the lates",
+  "2026-10-26 13:33:19,502 ASR failed: HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the lates",
+  "2026-10-26 13:38:16,763 ASR failed: HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the lates",
+  "2026-10-26 13:41:00,048 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:44:42,488 ASR failed: TimeoutError: The read operation timed out",
+  "2026-10-26 13:46:12,552 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:49:09,986 ASR failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+  "2026-10-26 13:50:05,115 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:52:23,180 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot"
+ ],
+ "updater_log": []
+}
