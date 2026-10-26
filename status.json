@@ -1,12 +1,12 @@
 {
- "time_utc": "2026-10-26 14:03:26",
+ "time_utc": "2026-10-26 14:08:13",
  "state": "deployed",
- "target_sha": "8170e09f96c07434b0c25961667bba662ec68a8c",
- "message": "Temporary: publish server-side test failure output to deploy-status",
- "installed_sha": "8170e09f96c07434b0c25961667bba662ec68a8c",
+ "target_sha": "a1fd20a5278a5897398aba1f4ffc637a10c54282",
+ "message": "Download and transcribe media as soon as it arrives; agent tool ids match report item numbers",
+ "installed_sha": "a1fd20a5278a5897398aba1f4ffc637a10c54282",
  "health": {
   "service": "hamdel-claude-bot",
-  "release": "8170e09f96c07434b0c25961667bba662ec68a8c",
+  "release": "a1fd20a5278a5897398aba1f4ffc637a10c54282",
   "state": "starting",
   "last_poll": 0,
   "updates": 0,
@@ -31,7 +31,8 @@
   "2026-10-26 13:50:05,115 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:52:23,180 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot",
-  "2026-10-26 14:03:15,945 Telegram identity verified: hamdel_reporter_bot"
+  "2026-10-26 14:03:15,945 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-26 14:08:04,112 Telegram identity verified: hamdel_reporter_bot"
  ],
  "updater_log": [
   "tests failed for dc90104d8340f6a36fabad285801b795d53fae4d; keeping current version",
