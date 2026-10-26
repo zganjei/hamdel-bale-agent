@@ -9,8 +9,8 @@ KINDS = {"photo": "photo", "video": "video", "video_note": "video"}
 def out(x): print(json.dumps(x, ensure_ascii=False, indent=1))
 
 def item_row(r, full=False):
-    d = {"id": r["rowid"], "kind": r["kind"], "time_utc": time.strftime("%Y-%m-%d %H:%M", time.gmtime(r["date"])),
-         "origin": r["origin"], "report": r["report_id"], "has_file": bool(r["path"]), "text": r["text"] or "", "voice_transcript": r["raw_asr"] or ""}
+    d = {"id": r["msg_id"], "kind": r["kind"], "time_utc": time.strftime("%Y-%m-%d %H:%M", time.gmtime(r["date"])),
+         "processed": bool(r["path"] or r["kind"] == "text" or r["note"]), "origin": r["origin"], "report": r["report_id"], "has_file": bool(r["path"]), "text": r["text"] or "", "voice_transcript": r["raw_asr"] or ""}
     if r["note"]: d["note"] = r["note"]
     if full and r["path"]: d["file"] = r["path"]
     return d
@@ -71,7 +71,7 @@ def main(argv, store=None, spawn=None):
     st = store or Store(os.environ.get("DATA_DIR", "data"))
     cmd, args = (argv or ["help"])[0], argv[1:]
     if cmd == "status":
-        pend = st.q("SELECT rowid, * FROM items WHERE report_id IS NULL ORDER BY date")
+        pend = st.q("SELECT * FROM items WHERE report_id IS NULL ORDER BY date")
         last = st.q("SELECT max(id) m FROM reports", one=True)["m"]
         out({"waiting_items": [item_row(r) for r in pend], "latest_report_id": last})
     elif cmd == "reports":
@@ -81,18 +81,18 @@ def main(argv, store=None, spawn=None):
         if not r: return out({"error": "no such report"})
         try: result = json.loads(r["result"])
         except ValueError: result = {}
-        its = st.q("SELECT rowid, * FROM items WHERE report_id=? ORDER BY date", (r["id"],))
+        its = st.q("SELECT * FROM items WHERE report_id=? ORDER BY date", (r["id"],))
         out({"id": r["id"], "created_utc": time.strftime("%Y-%m-%d %H:%M", time.gmtime(r["created"])), "result": result, "items": [item_row(i) for i in its]})
     elif cmd == "item":
-        r = st.q("SELECT rowid, * FROM items WHERE rowid=?", (int(args[0]),), one=True)
+        r = st.q("SELECT * FROM items WHERE msg_id=? ORDER BY date DESC", (int(args[0]),), one=True)
         out(item_row(r, full=True) if r else {"error": "no such item"})
     elif cmd == "search":
         q = f"%{' '.join(args)}%"
-        rows = st.q("SELECT rowid, * FROM items WHERE text LIKE ? OR raw_asr LIKE ? OR note LIKE ? ORDER BY date DESC LIMIT 25", (q, q, q))
+        rows = st.q("SELECT * FROM items WHERE text LIKE ? OR raw_asr LIKE ? OR note LIKE ? ORDER BY date DESC LIMIT 25", (q, q, q))
         reps = st.q("SELECT id FROM reports WHERE result LIKE ? ORDER BY id DESC LIMIT 25", (q,))
         out({"items": [item_row(r) for r in rows], "report_ids": [r["id"] for r in reps]})
     elif cmd == "send":
-        r = st.q("SELECT rowid, * FROM items WHERE rowid=?", (int(args[0]),), one=True)
+        r = st.q("SELECT * FROM items WHERE msg_id=? ORDER BY date DESC", (int(args[0]),), one=True)
         if not r or not r["path"] or not Path(r["path"]).exists(): return out({"error": "no file for this item"})
         st.queue_file(KINDS.get(r["kind"], "document"), r["path"], " ".join(args[1:]) or f"آیتم {args[0]}")
         out({"queued": int(args[0])})

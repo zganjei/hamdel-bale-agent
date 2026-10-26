@@ -419,3 +419,15 @@ class AgentPromptChangeTests(unittest.TestCase):
                 calls.append(cmd); p = P(); p.returncode = 0; p.stdout = json.dumps({"result": "ok", "session_id": "NEW"}); return p
             a = Agent(Config(data_dir=d, owner_id="1"), st, run=run); a.turn("x"); a.turn("y")
             self.assertNotIn("--resume", calls[0]); self.assertIn("NEW", calls[1])
+
+
+class EagerPrepareTests(unittest.TestCase):
+    def test_voice_is_downloaded_and_transcribed_before_any_report(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(data_dir=d, owner_id=str(OWNER), anthropic_key="k"); st = Store(d); tg = FakeTG()
+            st.add_item({"chat": OWNER, "msg_id": 8, "date": 1, "origin": "private", "kind": "voice", "file_id": "F", "filename": "", "size": 1, "duration": 3, "text": ""})
+            self.assertEqual(st.unprepared()["msg_id"], 8)
+            pipe = Pipeline(cfg, st, tg, FakeMedia(), None); pipe.prepare(st.unprepared())
+            self.assertIsNone(st.unprepared())
+            from hamclaude import ctl
+            ctl.main(["item", "8"], st)

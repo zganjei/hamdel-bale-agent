@@ -66,6 +66,11 @@ class Store:
         for r in rows: self.q("DELETE FROM outbox WHERE id=?", (r["id"],), write=True)
         return rows
 
+    def unprepared(self):
+        """Oldest waiting media item whose file has not been downloaded/transcribed yet."""
+        r = self.q("SELECT * FROM items WHERE report_id IS NULL AND kind!='text' AND file_id!='' AND path='' AND note='' ORDER BY date LIMIT 1", one=True)
+        return dict(r) if r else None
+
     def pending_count(self): return self.q("SELECT count(*) n FROM items WHERE report_id IS NULL", one=True)["n"]
 
     def next_report(self):

@@ -97,6 +97,8 @@ class App:
                 if flush: self.store.put("flush", "0")
                 self.store.close_ready(0 if flush else self.cfg.quiet_seconds)
                 if self.cfg.owner_id: self.pipe.pump_outbox()
+                row = self.store.unprepared()       # download + transcribe as soon as an item arrives, so the agent can already read it
+                if row: self.pipe.prepare(row); continue
                 if not self.pipe.process_next(): time.sleep(2)
             except Exception: logging.warning("Worker retrying; no content logged"); time.sleep(5)
 
