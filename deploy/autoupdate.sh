@@ -13,7 +13,7 @@ printf '{"commit":"%s"}\n' "$sha" > $D/new/release.json
 chown -R hamdel:hamdel $D/new
 rm -rf $D/app.prev; mv $D/app $D/app.prev; mv $D/new $D/app
 cp $D/app/deploy/autoupdate.sh $D/autoupdate.sh.next 2>/dev/null && mv $D/autoupdate.sh.next $D/autoupdate.sh || true   # keep the updater itself current
-sed -i '/^GEMINI_MODEL=/d' $D/env
+sed -i '/^GEMINI_MODEL=/d' $D/env; chown root:root $D/env; chmod 600 $D/env   # secrets readable by root/systemd only
 systemctl restart hamdel; sleep 10
 if curl -fs localhost:8080/health >/dev/null; then echo "$sha" > $D/version; echo "updated to $sha"
 else echo "unhealthy; rolling back"; rm -rf $D/app; mv $D/app.prev $D/app; systemctl restart hamdel; exit 1; fi

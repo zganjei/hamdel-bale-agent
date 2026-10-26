@@ -26,7 +26,8 @@ def settings_json(data_dir, ctl):
     data = str(Path(data_dir).resolve())
     return json.dumps({"permissions": {
         "allow": [f"Read(/{data}/**)", f"Bash(python3 {ctl} *)", "WebSearch", "WebFetch"],
-        "deny": ["Read(//opt/hamdel/env)", "Read(//proc/**)", "Read(//home/**)", "Read(//etc/**)", "Edit", "Write"]}})
+        "deny": ["Read(//opt/hamdel/env)", "Read(//opt/hamdel/gh-token)", "Read(//proc/**)", "Read(//sys/**)", "Read(//etc/**)",
+                 "Read(//home/**)", "Read(//root/**)", "Edit", "Write"]}})
 
 class Agent:
     def __init__(self, cfg, store, run=subprocess.run):
@@ -50,7 +51,7 @@ class Agent:
     def _run(self, prompt, resume=None):
         cmd = [self.cfg.claude_bin, "-p", prompt, "--model", self.cfg.claude_code_model,
                "--append-system-prompt", SYSTEM.replace("{ctl}", self.ctl), "--output-format", "json",
-               "--tools", "Read,Bash,WebSearch,WebFetch", "--permission-mode", "dontAsk",
+               "--tools", "Read,Grep,Glob,Bash,WebSearch,WebFetch", "--disallowedTools", "mcp__*", "--permission-mode", "dontAsk",
                "--settings", settings_json(self.cfg.data_dir, self.ctl), "--max-turns", "15"]
         if resume: cmd += ["--resume", resume]
         env = {k: v for k, v in os.environ.items() if k in ENV_KEYS}; env["DATA_DIR"] = str(Path(self.cfg.data_dir).resolve())

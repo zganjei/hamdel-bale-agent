@@ -29,7 +29,7 @@ REPORT_SENDER=
 QUIET_SECONDS=1800
 DATA_DIR=/opt/hamdel/data
 ENV
-chmod 600 /opt/hamdel/env; chown -R hamdel:hamdel /opt/hamdel
+chown -R hamdel:hamdel /opt/hamdel; chown root:root /opt/hamdel/env; chmod 600 /opt/hamdel/env
 sudo -u hamdel bash -c 'curl -fsSL https://claude.ai/install.sh | bash'
 install -m 644 /opt/hamdel/app/deploy/hamdel.service /etc/systemd/system/hamdel.service
 systemctl daemon-reload

@@ -7,5 +7,5 @@ read -rsp "$K: " V < /dev/tty; echo
 case "$V" in *$'\n'*|*$'\r'*) echo "value must be one line"; exit 1;; esac
 touch "$F"; grep -v "^${K}=" "$F" > "$F.tmp" || true
 printf '%s=%s\n' "$K" "$V" >> "$F.tmp"; mv "$F.tmp" "$F"; chmod 600 "$F"
-id hamdel >/dev/null 2>&1 && chown hamdel:hamdel "$F" || true
+chown root:root "$F" 2>/dev/null || true   # root-only: the agent (user hamdel) must not read secrets
 systemctl is-active --quiet hamdel && systemctl restart hamdel && echo "restarted" || echo "saved"

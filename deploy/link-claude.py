@@ -16,7 +16,7 @@ def env_get(key):
 def env_set(key, value):
     lines = [l for l in open(ENV).read().splitlines() if not l.startswith(key + "=")] + [f"{key}={value}"]
     open(ENV, "w").write("\n".join(lines) + "\n"); os.chmod(ENV, 0o600)
-    subprocess.run(["chown", "hamdel:hamdel", ENV], check=False)
+    subprocess.run(["chown", "root:root", ENV], check=False)
 
 TOKEN = env_get("TELEGRAM_BOT_TOKEN")
 def api(method, data=None, timeout=60):
