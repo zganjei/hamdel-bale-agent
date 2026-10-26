@@ -93,3 +93,7 @@ Not done / blockers:
 - After deploy, check /health: release equals the pushed SHA, group_updates_since_boot grows when members post, handler_errors_since_boot stays low. If group_updates_since_boot stays 0 while members post, the cause is Bale delivery (bot admin/privacy), not code.
 - Privacy audit (README RAM-only claim vs resumable Codex sessions) still open.
 - Provider migration from Codex to Claude for the bot runtime: not started; to be proposed separately.
+
+### Release status (observed via GitHub API, 2026-10-26)
+- Commit 8d586e3 pushed to main. CI job `test` passed. Job `deploy` FAILED at step "Deploy and verify the exact commit" (run 40280138288). The reason is unknown: step logs were not readable from the sandbox and the token cannot re-run workflows. Possible causes: liara deploy error, or /health did not report release=8d586e3, state=running and speech_state=ready within ~3 minutes. Earlier runs on 2026-10-16 (2de9f1f, f341469) also failed once and later passed.
+- The currently running production SHA is therefore UNVERIFIED. Next step: read the failed step's log in GitHub Actions, then re-run failed jobs or fix the cause; verify /health release before treating any change here as live.
