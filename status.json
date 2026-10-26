@@ -1,14 +1,14 @@
 {
- "time_utc": "2026-10-26 14:36:48",
- "state": "deployed",
- "target_sha": "6e8474286c6096b49ad87de75e6eed6d09e26c79",
- "message": "Owner can address the bot in any group by mention or reply; answer goes to private chat",
+ "time_utc": "2026-10-26 14:56:03",
+ "state": "heartbeat",
+ "target_sha": "",
+ "message": "",
  "installed_sha": "6e8474286c6096b49ad87de75e6eed6d09e26c79",
  "health": {
   "service": "hamdel-claude-bot",
   "release": "6e8474286c6096b49ad87de75e6eed6d09e26c79",
-  "state": "starting",
-  "last_poll": 0,
+  "state": "running",
+  "last_poll": 1793026563,
   "updates": 0,
   "group_items": 0,
   "ignored_group": 0,
@@ -35,7 +35,6 @@
   "2026-10-26 14:36:37,654 Telegram identity verified: hamdel_reporter_bot"
  ],
  "updater_log": [
-  "tests failed for dc90104d8340f6a36fabad285801b795d53fae4d; keeping current version",
   "hamdel-update.service: Main process exited, code=exited, status=1/FAILURE",
   "hamdel-update.service: Failed with result 'exit-code'.",
   "Failed to start hamdel-update.service - Update Hamdel bot from GitHub.",
