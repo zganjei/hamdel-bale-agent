@@ -25,7 +25,7 @@ def wer(ref, hyp):
 
 def main(argv):
     cfg = config.load(); media = Media(cfg); pairs = list(zip(argv[::2], argv[1::2]))
-    providers = [p for p, ok in (("gemini", cfg.gemini_key), ("cloudflare", cfg.cf_account and cfg.cf_token)) if ok]
+    providers = [p for p, ok in (("elevenlabs", cfg.elevenlabs_key), ("gemini", cfg.gemini_key), ("cloudflare", cfg.cf_account and cfg.cf_token)) if ok]
     if not pairs or not providers: raise SystemExit(__doc__)
     for prov in providers:
         errs, secs = [], 0.0

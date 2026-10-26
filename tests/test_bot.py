@@ -454,3 +454,38 @@ class GeminiDiscoveryTests(unittest.TestCase):
             seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"x")
             m = Media(Config(gemini_key="G"), opener=opener, run=lambda *a, **k: None); m.audio_segments = lambda p, f, seconds=90: [seg]
             self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "ok"); self.assertFalse(any("image:generate" in c for c in calls))
+
+
+class ElevenLabsAndKeysTests(unittest.TestCase):
+    def test_scribe_request_and_fallback_to_gemini(self):
+        import io, urllib.error
+        from hamclaude.media import Media
+        seen = []
+        class R:
+            def __init__(s, d): s.d = d
+            def __enter__(s): return s
+            def __exit__(s, *a): pass
+            def read(s): return s.d
+        def opener(req, timeout=0):
+            seen.append(req)
+            if "elevenlabs" in req.full_url:
+                if len(seen) == 1: raise urllib.error.HTTPError(req.full_url, 422, "bad model", {}, io.BytesIO(b"{}"))
+                return R(json.dumps({"text": "سلام بیست بسته"}).encode())
+            return R(json.dumps({"candidates": [{"content": {"parts": [{"text": "gemini"}]}}]}).encode())
+        with tempfile.TemporaryDirectory() as d:
+            seg = Path(d) / "a_a000.mp3"; seg.write_bytes(b"abc")
+            m = Media(Config(elevenlabs_key="E", gemini_key="G"), opener=opener, run=lambda *a, **k: None); m.audio_segments = lambda p, f, seconds=90: [seg]
+            self.assertEqual(m.providers(), ["elevenlabs", "gemini"])
+            self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "سلام بیست بسته")
+            self.assertEqual(seen[0].get_header("Xi-api-key"), "E"); self.assertIn(b'name="model_id"\r\n\r\nscribe_v2', seen[0].data); self.assertIn(b"scribe_v1", seen[1].data)
+            seen.clear(); m.cfg.elevenlabs_key = ""; self.assertEqual(m.transcribe(Path(d) / "a.ogg", d), "gemini")
+
+    def test_setkey_message_stores_key_deletes_message_and_skips_agent(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(data_dir=d, owner_id=str(OWNER), keys_dir=str(Path(d) / "keys")); st = Store(d); tg = FakeTG(); calls = []
+            tg.call = lambda method, data=None: calls.append((method, data))
+            app = main.App(cfg, st, tg, None)
+            app.handle({"update_id": 1, "message": {"message_id": 5, "date": 1, "chat": {"id": OWNER, "type": "private"}, "from": {"id": OWNER},
+                                                    "text": "کلید elevenlabs sk_1234567890abcdef"}})
+            self.assertEqual((Path(d) / "keys" / "elevenlabs").read_text(), "sk_1234567890abcdef")
+            self.assertEqual(calls[0][0], "deleteMessage"); self.assertTrue(app.questions.empty()); self.assertNotIn("sk_1234567890abcdef", tg.sent[-1][2])

@@ -21,6 +21,8 @@ class Config:
     cf_token: str = ""
     asr_provider: str = "auto"      # auto = gemini if GEMINI_API_KEY is set, else cloudflare
     gemini_key: str = ""
+    elevenlabs_key: str = ""
+    keys_dir: str = ""           # where keys handed over from Telegram are stored (set by load())
     gemini_model: str = "gemini-3.8-flash"
     asr_model: str = "@cf/openai/whisper-large-v3-turbo"
     data_dir: str = "data"
@@ -42,7 +44,7 @@ def load(env=None):
         provider=g("LLM_PROVIDER", "claudecode").casefold(), claude_bin=g("CLAUDE_BIN", "claude"), claude_code_model=g("CLAUDE_CODE_MODEL", "sonnet"), model=g("CLAUDE_MODEL", "claude-sonnet-5-5"),
         llm_model=g("CF_LLM_MODEL", "@cf/qwen/qwen3-30b-a3b-fp8"), vision_model=g("CF_VISION_MODEL", "@cf/meta/llama-3.2-11b-vision-instruct"),
         cf_account=g("CLOUDFLARE_ACCOUNT_ID"), cf_token=g("CLOUDFLARE_API_TOKEN"),
-        asr_provider=g("ASR_PROVIDER", "auto").casefold(), gemini_key=g("GEMINI_API_KEY"), gemini_model=g("GEMINI_MODEL", "gemini-3.8-flash"),
+        asr_provider=g("ASR_PROVIDER", "auto").casefold(), gemini_key=g("GEMINI_API_KEY"), elevenlabs_key=g("ELEVENLABS_API_KEY"), keys_dir=g("KEYS_DIR", "/opt/hamdel/keys"), gemini_model=g("GEMINI_MODEL", "gemini-3.8-flash"),
         asr_model=g("ASR_MODEL", "@cf/openai/whisper-large-v3-turbo"),
         data_dir=g("DATA_DIR", "data"), owner_id=g("OWNER_ID"), group_chat_id=g("GROUP_CHAT_ID"),
         report_sender=g("REPORT_SENDER", "").lstrip("@").casefold(),

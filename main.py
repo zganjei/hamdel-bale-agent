@@ -3,6 +3,8 @@ import hashlib, hmac, json, logging, os, queue, subprocess, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from hamclaude import config as cfgmod
+import re
+from hamclaude import keys
 from hamclaude.agent import Agent
 from hamclaude.analyst import Analyst
 from hamclaude.cf_analyst import CFAnalyst
@@ -15,6 +17,8 @@ from hamclaude.store import Store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 STATE = {"state": "starting", "last_poll": 0, "updates": 0, "group_items": 0, "ignored_group": 0,
          "private_items": 0, "handler_errors": 0, "skipped_updates": 0, "last_error": "none"}
+
+SETKEY = re.compile(r"^/?(?:setkey|کلید)\s+(elevenlabs|gemini)\s+(\S{16,})$", re.I)
 
 def obj(x): return x if isinstance(x, dict) else {}
 
@@ -53,6 +57,14 @@ class App:
             if it: self.store.add_item(it); STATE["group_items"] += 1
             return
         if chat.get("type") == "private" and self.cfg.owner_id and str(uid) == self.cfg.owner_id:
+            km = SETKEY.match(text)
+            if km:                                  # handled here, never passed to the agent; the message is deleted from the chat
+                name, value = km.group(1).casefold(), km.group(2)
+                try: keys.put(self.cfg, name, value); note = f"کلید {name} ذخیره شد و پیامت را پاک کردم."
+                except Exception: note = "ذخیرهٔ کلید ناموفق بود."
+                try: self.tg.call("deleteMessage", {"chat_id": cid, "message_id": m.get("message_id")})
+                except Exception: note += " (پیام را خودت پاک کن.)"
+                self.tg.send_message(cid, note); return
             if text.split("@")[0].split(" ")[0] == "/report" or text in ("گزارش", "گزارش بده"):
                 n = self.store.pending_count()
                 if n: self.store.put("flush", "1"); self.tg.send_message(cid, f"{n} پیام جمع شده؛ گزارش را آماده می‌کنم. چند دقیقه صبر کن.")

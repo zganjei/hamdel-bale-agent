@@ -1,6 +1,7 @@
 """ffmpeg helpers and Cloudflare Whisper ASR. Both are injectable so tests need no binaries or network."""
-import base64, json, subprocess, time, urllib.error, urllib.request
+import base64, json, os, subprocess, time, urllib.error, urllib.request
 from pathlib import Path
+from . import keys
 
 ASR_PROMPT = ("گفتار فارسی محاوره‌ای دربارهٔ کار خیریه: کمک، واریز، تومان، کرون، خانواده، نیازمند، "
               "بسته غذایی، توزیع، مراسم، هماهنگی.")
@@ -41,16 +42,46 @@ class Media:
                   "-f", "segment", "-segment_time", str(seconds), pattern])
         return sorted(Path(folder).glob(Path(path).stem + "_a*.mp3"))
 
-    def provider(self):
+    def providers(self):
+        """Order to try: the explicit choice, or (auto) ElevenLabs Scribe -> Gemini -> Cloudflare, whichever have keys."""
         cfg = self.cfg
-        if cfg.asr_provider == "auto": return "gemini" if cfg.gemini_key else "cloudflare"
-        return cfg.asr_provider
+        if cfg.asr_provider != "auto": return [cfg.asr_provider]
+        order = [n for n, ok in (("elevenlabs", keys.get(cfg, "elevenlabs")), ("gemini", keys.get(cfg, "gemini")),
+                                 ("cloudflare", cfg.cf_account and cfg.cf_token)) if ok]
+        return order or ["cloudflare"]
+
+    def provider(self): return self.providers()[0]
 
     def transcribe(self, path, folder, provider=None):
-        """Raw Persian transcript of a voice/audio/video file ('' if there is no speech)."""
-        provider = provider or self.provider()
-        if provider == "gemini": return self._gemini(path, folder)
-        return self._cloudflare(path, folder)
+        """Raw Persian transcript of a voice/audio/video file ('' if there is no speech). Falls back to the next provider on failure."""
+        last = None
+        for prov in ([provider] if provider else self.providers()):
+            try:
+                return {"gemini": self._gemini, "elevenlabs": self._elevenlabs}.get(prov, self._cloudflare)(path, folder)
+            except Exception as e: last = e
+        raise last
+
+    SCRIBE = ("scribe_v2", "scribe_v1")
+
+    def _elevenlabs(self, path, folder):
+        key = keys.get(self.cfg, "elevenlabs")
+        if not key: raise RuntimeError("asr_not_configured")
+        texts = []
+        for seg in self.audio_segments(path, folder, seconds=1800):
+            for model in self.SCRIBE:
+                b = "hamdel_" + os.urandom(12).hex()
+                fields = {"model_id": model, "language_code": "fas", "tag_audio_events": "false", "diarize": "false"}
+                body = b"".join(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode() for k, v in fields.items())
+                body += (f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="{seg.name}"\r\nContent-Type: audio/mpeg\r\n\r\n').encode() \
+                        + seg.read_bytes() + f"\r\n--{b}--\r\n".encode()
+                req = urllib.request.Request("https://api.elevenlabs.io/v1/speech-to-text", data=body,
+                                             headers={"xi-api-key": key, "Content-Type": f"multipart/form-data; boundary={b}"})
+                try:
+                    with self.open(req, timeout=120) as r: res = json.load(r)
+                    texts.append(str(res.get("text", "")).strip()); break
+                except urllib.error.HTTPError as e:
+                    if e.code not in (400, 404, 422) or model == self.SCRIBE[-1]: raise     # unknown model id: try the older one
+        return " ".join(t for t in texts if t).strip()
 
     MODELS_FALLBACK = ("gemini-flash-latest", "gemini-3.8-flash")
     SKIP = ("image", "tts", "live", "embed", "aqa", "imagen", "veo", "robotics", "computer", "audio", "customtools")
@@ -58,14 +89,14 @@ class Media:
     def gemini_models(self):
         """Models this key can really use for generateContent (discovered from the API, newest 'flash' first)."""
         req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
-                                     headers={"x-goog-api-key": self.cfg.gemini_key})
+                                     headers={"x-goog-api-key": keys.get(self.cfg, "gemini")})
         with self.open(req, timeout=20) as r: items = json.load(r).get("models", [])
         names = [m["name"].split("/")[-1] for m in items if "generateContent" in m.get("supportedGenerationMethods", [])]
         return sorted((n for n in names if "flash" in n and not any(k in n for k in self.SKIP)), reverse=True)
 
     def _gemini(self, path, folder, budget=240):
         cfg = self.cfg
-        if not cfg.gemini_key: raise RuntimeError("asr_not_configured")
+        if not keys.get(cfg, "gemini"): raise RuntimeError("asr_not_configured")
         segments = self.audio_segments(path, folder, seconds=300)
         tried, last, end = set(), None, time.time() + budget
         queue = [getattr(self, "_gemini_ok", None) or cfg.gemini_model, *self.MODELS_FALLBACK]; discovered = False
@@ -95,7 +126,7 @@ class Media:
                 "generationConfig": {"temperature": 0}}).encode()
             req = urllib.request.Request(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", data=body,
-                headers={"x-goog-api-key": cfg.gemini_key, "Content-Type": "application/json"})
+                headers={"x-goog-api-key": keys.get(cfg, "gemini"), "Content-Type": "application/json"})
             with self.open(req, timeout=75) as r: res = json.load(r)
             parts = ((res.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
             texts.append("".join(p.get("text", "") for p in parts).strip())
