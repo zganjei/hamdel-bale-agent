@@ -406,3 +406,15 @@ class CtlJobTests(unittest.TestCase):
             st.queue_text("لینک"); st.queue_file("photo", p, "تصویرسازی")
             Pipeline(cfg, st, tg, FakeMedia(), None).pump_outbox()
             self.assertEqual([s[0] for s in tg.sent], ["msg", "photo"]); self.assertTrue(all(s[1] == OWNER for s in tg.sent))
+
+
+class AgentPromptChangeTests(unittest.TestCase):
+    def test_new_instructions_start_a_fresh_session(self):
+        from hamclaude.agent import Agent
+        with tempfile.TemporaryDirectory() as d:
+            st = Store(d); st.put("agent_session", "OLD"); st.put("agent_prompt", "stale"); calls = []
+            class P: pass
+            def run(cmd, **kw):
+                calls.append(cmd); p = P(); p.returncode = 0; p.stdout = json.dumps({"result": "ok", "session_id": "NEW"}); return p
+            a = Agent(Config(data_dir=d, owner_id="1"), st, run=run); a.turn("x"); a.turn("y")
+            self.assertNotIn("--resume", calls[0]); self.assertIn("NEW", calls[1])

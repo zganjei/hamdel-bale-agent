@@ -2,7 +2,7 @@
 
 The agent can read the archive (database and media under DATA_DIR), search the web, and act only through `hamctl`
 (list/search reports, queue media for the owner, build a report now). It has no Telegram token and no way to message anyone else."""
-import json, os, subprocess, sys, time, uuid
+import hashlib, json, os, subprocess, sys, time, uuid
 from pathlib import Path
 from .cc_analyst import ENV_KEYS
 
@@ -38,6 +38,9 @@ class Agent:
 
     def turn(self, text):
         sid = self.store.get("agent_session")
+        h = hashlib.sha1((SYSTEM + self.ctl).encode()).hexdigest()[:12]
+        if self.store.get("agent_prompt") != h:       # instructions/tools changed: old conversation would anchor on the old abilities
+            sid = ""; self.store.put("agent_prompt", h); self.store.put("agent_session", "")
         pend = self.store.pending_count()
         prompt = (f"[زمان: {time.strftime('%Y-%m-%d %H:%M', time.gmtime())} UTC | آیتم‌های منتظر گزارش: {pend}]\n"
                   f"پیام مدیر:\n{text[:6000]}")
