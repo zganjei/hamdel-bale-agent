@@ -112,8 +112,9 @@ def build(cfg):
 
 if __name__ == "__main__":
     cfg = cfgmod.load()
-    need = [("BALE_BOT_TOKEN", cfg.bale_token)] + ([("ANTHROPIC_API_KEY", cfg.anthropic_key)] if cfg.provider == "claude" else []) \
-        + [("CLOUDFLARE_ACCOUNT_ID", cfg.cf_account), ("CLOUDFLARE_API_TOKEN", cfg.cf_token)]   # speech-to-text needs it for every provider
+    need = [("BALE_BOT_TOKEN", cfg.bale_token)] + ([("ANTHROPIC_API_KEY", cfg.anthropic_key)] if cfg.provider == "claude" else [])
+    if not cfg.gemini_key:   # speech-to-text: Gemini key, or Cloudflare as fallback
+        need += [("GEMINI_API_KEY (or CLOUDFLARE_*)", cfg.cf_account and cfg.cf_token)]
     missing = [k for k, v in need if not v]
     if missing: raise SystemExit("Missing environment variables: " + ", ".join(missing))
     app = build(cfg)
