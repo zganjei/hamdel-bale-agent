@@ -176,8 +176,9 @@ class CloudflareTests(unittest.TestCase):
         raw="یک ساختمان خیلی قدیمیه و برای کارهای فرهنگی و آموزشی استفاده می‌شود"
         other="ساختمون قدیمیه و برای فعالیت‌های فرهنگی استفاده می‌شه"
         captured=[]
-        def fake_codex(prompt, work):
+        def fake_codex(prompt, work, **kwargs):
             captured.append(prompt)
+            self.assertEqual((kwargs.get("model"),kwargs.get("effort")),("gpt-6-luna","low"))
             return {"text":raw}
         with tempfile.TemporaryDirectory() as d:
             with patch("multimodal.codex",side_effect=fake_codex):

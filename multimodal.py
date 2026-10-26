@@ -11,7 +11,7 @@ ROOT = Path(os.getenv('DATA_DIR', 'data')).resolve()
 AUTH = ROOT / 'hamdel-codex-auth'
 BINARY = ROOT / 'codex-runtime/package/vendor/x86_64-unknown-linux-musl/bin/codex'
 
-def codex(prompt, work, *, image=False, inputs=()):
+def codex(prompt, work, *, image=False, inputs=(), model=None, effort=None):
     output = work / 'answer.txt'
     events = work / 'events.jsonl'
     env = {k:v for k,v in os.environ.items() if k in ('PATH','LANG','SSL_CERT_FILE','SSL_CERT_DIR','HTTP_PROXY','HTTPS_PROXY','NO_PROXY')}
@@ -23,6 +23,9 @@ def codex(prompt, work, *, image=False, inputs=()):
            '--color','never','--json','-c','web_search="disabled"',
            '-C',str(work),'-o',str(output)]
     if not image:
+        # Text-only calls (e.g. voice proofreading) pin a light model and effort explicitly.
+        if model: cmd += ['-m',str(model)]
+        if effort: cmd += ['-c','model_reasoning_effort="'+str(effort)+'"']
         cmd += ['--disable','image_generation']
         schema=work/'schema.json'
         schema.write_text(json.dumps({'type':'object','properties':{

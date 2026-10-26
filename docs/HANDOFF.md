@@ -74,3 +74,22 @@ Historical Liara shell sandbox failed on unprivileged namespaces; existing MCP t
 
 ## Completion criteria
 Natural-language group categorization uses actually received context; historical report accesses the correct filtered evidence; no hidden voice tail is approved; retries do not duplicate financial entries; configured lightweight model is explicit for proofreading; source and deployed release are traceable. Describe untested integration paths honestly.
+
+## Claude Code session log — 2026-10-26
+Observed in this session (sandbox without access to Liara, Bale, Cloudflare or Codex):
+- Baseline: 64 tests passed on 934edbc. After changes: 75 tests pass; compileall clean.
+- Production /health was NOT reachable from the sandbox (egress blocked), so live group delivery, deployed SHA and speech state were NOT verified by me. Latest GitHub Actions runs seen via API were from 2026-10-16 (7f3ad7e success); that is historical.
+- Reproduced in tests: handle() raised AttributeError for updates whose `from` or `chat` was null (anonymous/channel-style posts) or whose reply_to_message.from was null. poll() advanced the offset only after handle() succeeded, so one such update was re-fetched forever and blocked every later update, including group messages. This is a proven defect and a plausible cause of "no recent group context", but it is NOT proven to be the production cause. Bale privacy/admin settings for the bot in the group remain unchecked.
+
+Changed:
+1. main.py: null-safe sender/chat/reply parsing; dispatch_update() retries a failing update up to 3 times then skips it so later updates flow; offset still advances. /health gained updates_since_boot, group_other_chat_updates, handler_errors_since_boot, skipped_updates_since_boot, last_handler_error (exception type only, no content).
+2. agent_bridge.voice_ready(): the full stored transcript is shown in chunks of <=3000 chars; buttons are attached only to the final chunk; the displayed text is the stored transcript that approval executes (INSERT OR IGNORE replays can no longer show different text); a send failure rejects the pending voice record so it cannot be approved; a decided voice is not re-offered. voice_raw also sends all chunks. enqueue_ai cap raised from 8000 to 30000 so an approved long transcript is not silently truncated (matches agent prompt cap).
+3. multimodal.codex(): optional model/effort, applied only to text-only calls (image generation path unchanged). Voice proofreading now passes proofread_model/proofread_effort (config.json: gpt-6-luna / low, falling back to agent_*).
+4. live_context.snapshot(): startup seed records older than 60 days are now excluded during long uptime.
+Tests added: tests/test_delivery_and_voice.py, seed ageing test, proofreading argument tests.
+
+Not done / blockers:
+- Persian transcription quality, latency and quota were NOT measured: no audio, owner-verified transcript or Cloudflare/Codex credentials here. Only static bound measured: group context snapshot is <= ~8.2K characters per turn. Dual-pass ASR cost is unchanged.
+- After deploy, check /health: release equals the pushed SHA, group_updates_since_boot grows when members post, handler_errors_since_boot stays low. If group_updates_since_boot stays 0 while members post, the cause is Bale delivery (bot admin/privacy), not code.
+- Privacy audit (README RAM-only claim vs resumable Codex sessions) still open.
+- Provider migration from Codex to Claude for the bot runtime: not started; to be proposed separately.

@@ -99,7 +99,8 @@ class RecentContext:
         with self.lock:
             self._prune(now)
             live=[dict(row) for (c,_),row in self.items.items() if c==cid]
-            saved=[dict(row) for c,row in self.baseline if c==cid]
+            # Startup seed records must age out during long uptimes too.
+            saved=[dict(row) for c,row in self.baseline if c==cid and row['date']>=now-60*24*3600]
         # Fresh in-memory messages override duplicate startup records.
         by_id={row['id']:row for row in saved}
         by_id.update({row['id']:row for row in live})

@@ -85,21 +85,54 @@ def keyboard(chat,jobid):
     if not row:return None
     return {'inline_keyboard':[[{'text':'✅ تأیید','callback_data':'approve:'+row[0]},{'text':'❌ رد','callback_data':'reject:'+row[0]}]]}
 
+def chunks(text,size=3000):
+    """Split without losing words; only boundary whitespace may be dropped."""
+    text=str(text or '').strip();out=[]
+    while len(text)>size:
+        cut=max(text.rfind('\n',0,size),text.rfind(' ',0,size))
+        if cut<size//2:cut=size
+        out.append(text[:cut].strip());text=text[cut:].strip()
+    if text:out.append(text)
+    return out
+
+def _send_part(main,payload):
+    for attempt in (1,2):
+        try:return main.api('sendMessage',payload)
+        except Exception:
+            if attempt==2:raise
+
 def voice_ready(chat,mid,text,suggested=None):
     import main
     # Labels belong in the UI only, never in the transcript the owner approves.
     proposed = suggested if suggested else text
-    vid=store().add_voice(f'bale:{chat}:voice:{mid}',chat,proposed)
+    s=store()
+    vid=s.add_voice(f'bale:{chat}:voice:{mid}',chat,proposed)
+    stored=s.get_voice(vid,chat)
+    # A retry must never re-offer a decided voice, and the owner must see exactly
+    # the stored transcript that approval will execute.
+    if not stored or stored['status']!='pending':return
+    shown=chunks(stored['transcript'])
     buttons={'inline_keyboard':[
         [{'text':'✅ متن درست است','callback_data':'voice_ok:'+vid},
          {'text':'❌ اشتباه است','callback_data':'voice_no:'+vid}],
         [{'text':'🔎 متن خام Whisper','callback_data':'voice_raw:'+vid}]
     ]}
-    main.api('sendMessage',{'chat_id':chat,
-        'text':'🎧 متن صوت؛ هنوز اجرا نشده:\n\n'+proposed[:3300]
-        +'\n\nاگر کلمه‌ای اشتباه شنیده شده، متن را رد کن و اصلاحش کن. '
-        'قبل از تأیید، اسم‌ها و مبلغ‌ها را بررسی کن.',
-        'reply_markup':buttons})
+    total=len(shown)
+    try:
+        for number,part in enumerate(shown,1):
+            head='🎧 متن صوت؛ هنوز اجرا نشده:\n\n' if total==1 else f'🎧 متن صوت، بخش {number} از {total}؛ هنوز اجرا نشده:\n\n'
+            if number<total:
+                _send_part(main,{'chat_id':chat,'text':head+part});continue
+            _send_part(main,{'chat_id':chat,'text':head+part
+                +('\n\n✔️ پایان متن کامل.' if total>1 else '')
+                +'\n\nاگر کلمه‌ای اشتباه شنیده شده، متن را رد کن و اصلاحش کن. '
+                'قبل از تأیید، اسم‌ها و مبلغ‌ها را بررسی کن.',
+                'reply_markup':buttons})
+    except Exception:
+        # Buttons are only attached to the final part, so an incomplete display
+        # cannot be approved. Close the pending record to avoid a stale approval.
+        s.decide_voice(vid,chat,status='rejected')
+        raise
 
 def callback(cb,updateid):
     import main
@@ -125,7 +158,9 @@ def callback(cb,updateid):
                 raw=row['transcript'] if row else ''
             except (ValueError,TypeError):
                 raw=''
-            main.send(chat,'🔎 متن خام Whisper:\n\n'+(raw[:3500] or 'متن خام در آرشیو پیدا نشد.'))
+            parts=chunks(raw) or ['متن خام در آرشیو پیدا نشد.']
+            for number,part in enumerate(parts,1):
+                main.send(chat,'🔎 متن خام Whisper'+(f' ({number} از {len(parts)})' if len(parts)>1 else '')+':\n\n'+part)
             result='متن خام نمایش داده شد.'
         else: result='ویس دیگر در انتظار تأیید نیست.'
     elif action in ('voice_ok','voice_no'):

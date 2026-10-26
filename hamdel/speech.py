@@ -172,7 +172,12 @@ def polish_transcript_with_codex(raw, root, alternative=''):
            + alternative if alternative else "")
     )
     with tempfile.TemporaryDirectory(prefix="hamdel-proofread-", dir=root) as folder:
-        candidate = multimodal.codex(prompt, Path(folder))["text"].strip()
+        from .config import settings
+        cfg = settings()
+        candidate = multimodal.codex(
+            prompt, Path(folder),
+            model=cfg.get("proofread_model") or cfg["agent_model"],
+            effort=cfg.get("proofread_effort") or cfg["agent_effort"])["text"].strip()
     # Fail closed if the model hides content under placeholder labels. Preserve
     # the whole original instead of silently deleting speech that the owner
     # might recognize. Codex does not have the audio and cannot infer its truth.

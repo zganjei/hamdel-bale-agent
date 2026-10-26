@@ -28,7 +28,9 @@ API = 'https://tapi.bale.ai'
 ARCHIVE_SENDER = str(runtime_settings().get('archive_sender_username','motahari58')).strip().lstrip('@').casefold()
 STATE = {'state': 'starting', 'last_poll': 0, 'speech_state': 'checking'}
 LIVE_GROUP = RecentContext()
-STATE.update(group_updates_since_boot=0,group_last_received_at=0,group_seeded_messages=0)
+STATE.update(group_updates_since_boot=0,group_last_received_at=0,group_seeded_messages=0,
+             updates_since_boot=0,group_other_chat_updates=0,handler_errors_since_boot=0,
+             skipped_updates_since_boot=0,last_handler_error='none')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def db():
@@ -165,7 +167,7 @@ AI_AUTH = ROOT / 'hamdel-codex-auth'
 def enqueue_ai(mid, cid, text):
     with db() as c:
         c.execute('INSERT OR IGNORE INTO ai_jobs(id,chat,prompt,created) VALUES(?,?,?,?)',
-                  (mid,cid,text[:8000],int(time.time())))
+                  (mid,cid,text[:30000],int(time.time())))
 
 def answer_ai(cid, question, jobid):
     import agent_bridge
@@ -371,7 +373,11 @@ def handle(u):
         agent_bridge.callback(u['callback_query'],u['update_id']);return
     mid=u['update_id']; m=u.get('message') or u.get('edited_message')
     if not m: return
-    chat=m.get('chat',{}); cid=chat.get('id'); uid=m.get('from',{}).get('id')
+    # Bale/Telegram can send null or missing sender/chat objects (anonymous or channel-style posts).
+    chat=m.get('chat') if isinstance(m.get('chat'),dict) else {}
+    cid=chat.get('id')
+    uid=(m.get('from') if isinstance(m.get('from'),dict) else {}).get('id')
+    STATE['updates_since_boot']+=1
     text=m.get('text') or m.get('caption') or ''
     bound=setting('chat_id')
     command=text.split(maxsplit=1)[0].split('@')[0] if text else ''
@@ -397,13 +403,15 @@ def handle(u):
             enqueue_ai(mid,cid,'سلام، خیلی کوتاه توضیح بده چطور می‌توانم درباره گزارش‌های همدل با تو صحبت کنم.')
         else: enqueue_ai(mid,cid,text)
         return
-    if str(cid)!=bound: return
+    if str(cid)!=bound:
+        STATE['group_other_chat_updates']+=1
+        return
     STATE['group_updates_since_boot'] += 1
     STATE['group_last_received_at'] = int(time.time())
     # Recent messages of all group members are retained only in RAM.
     # The permanent archive below stays restricted to @motahari58.
     LIVE_GROUP.add(cid,m)
-    addressed = '@hamdel_report_bot' in text.lower() or m.get('reply_to_message',{}).get('from',{}).get('username','').lower()=='hamdel_report_bot'
+    addressed = '@hamdel_report_bot' in text.lower() or str(((m.get('reply_to_message') or {}).get('from') or {}).get('username') or '').lower()=='hamdel_report_bot'
     if owner and addressed and (m.get('voice') or m.get('audio')) and not u.get('edited_message'):
         enqueue_speech(m,True)
     if owner and addressed and text and not (m.get('voice') or m.get('audio')) and not u.get('edited_message'):
@@ -487,6 +495,24 @@ def media_worker():
         except Exception:
             logging.warning('Archive media worker retrying'); time.sleep(10)
 
+def dispatch_update(u,attempts=3,pause=1):
+    """Handle one update; a persistently failing update must not block later ones.
+
+    Transient failures (Bale API, SQLite lock) are retried briefly. After the last
+    attempt the update is skipped and only the exception type is recorded.
+    """
+    for attempt in range(1,attempts+1):
+        try:
+            handle(u)
+            return True
+        except Exception as exc:
+            STATE['handler_errors_since_boot']+=1
+            STATE['last_handler_error']=type(exc).__name__[:60]
+            logging.warning('Update handler failed (%s), attempt %d/%d; no content logged',type(exc).__name__,attempt,attempts)
+            if attempt<attempts: time.sleep(pause)
+    STATE['skipped_updates_since_boot']+=1
+    return False
+
 def poll():
     if not TOKEN:
         STATE['state']='missing_token'; logging.error('BALE_BOT_TOKEN is missing'); return
@@ -511,7 +537,7 @@ def poll():
         try:
             updates=api('getUpdates',{'offset':int(setting('offset','0')),'limit':50,'timeout':25})
             for u in updates:
-                handle(u)
+                dispatch_update(u)
                 set_setting('offset',u['update_id']+1)
             STATE.update(state='running' if setting('chat_id') else 'awaiting_group',last_poll=int(time.time()))
         except Exception:

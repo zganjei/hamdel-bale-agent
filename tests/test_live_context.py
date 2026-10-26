@@ -1,6 +1,13 @@
 import unittest
 from hamdel.live_context import RecentContext, needs_history
 
+class SeedAgeingTests(unittest.TestCase):
+    def test_seed_expires_during_long_uptime(self):
+        live=RecentContext()
+        live.seed(5,[{'id':1,'date':1000,'text':'قدیمی'}],now=1000)
+        self.assertEqual(len(live.snapshot(5,now=1000+59*24*3600)['messages']),1)
+        self.assertEqual(live.snapshot(5,now=1000+61*24*3600)['messages'],[])
+
 class ContextTests(unittest.TestCase):
     def test_simple_conversation_does_not_use_archive(self):
         for q in ('سلام','متن پوستر رو قشنگ‌تر کن','برای برنامه فردا چه پیشنهادی داری'):
