@@ -8,31 +8,30 @@
 5. حساب را **Pay As You Go** نکن؛ روی Free بماند تا هزینه‌ای نیاید.
 
 ## ۲. اتصال
-از موبایل: اپ Termius (iOS/Android) را نصب کن، Host=Public IP، User=ubuntu، و private key را import کن.
+از موبایل: اپ Termius را نصب کن، Host=Public IP، User=ubuntu، و private key را import کن.
 
-## ۳. نصب
+## ۳. نصب (یک paste)
+توکن GitHub را به‌جای `...` بگذار و این دو خط را paste کن (ابتدا `export`، بعد `curl`). اسکریپت توکن بات بله را می‌پرسد و اول از سرور `getMe` را تست می‌کند؛ اگر بله جواب نداد، متوقف می‌شود.
 ```
-sudo apt-get install -y unzip
-# فایل zip را با Termius (SFTP) به سرور بفرست، سپس:
-unzip hamdel-claude-bot.zip && cd hamdel-claude-bot
-sudo bash deploy/setup.sh
+export GH='...'
+curl -fsSL -H "Authorization: Bearer $GH" -H "Accept: application/vnd.github.raw" "https://api.github.com/repos/zganjei/hamdel-bale-agent/contents/deploy/bootstrap.sh?ref=hamdel-claude-bot" | sudo -E bash
 ```
 
 ## ۴. ورود Claude Code با اشتراک
 ```
-sudo -iu hamdel
-claude setup-token
+sudo -iu hamdel claude setup-token
+sudo bash /opt/hamdel/app/deploy/set-env.sh CLAUDE_CODE_OAUTH_TOKEN
 ```
-توکن چاپ‌شده را کپی کن و در `/opt/hamdel/env` جلوی `CLAUDE_CODE_OAUTH_TOKEN=` بگذار. (اگر این دستور در نسخهٔ تو نبود، `claude` را اجرا کن و با `/login` وارد شو.) توکن را به کسی نده.
+(اگر `setup-token` نبود: `sudo -iu hamdel claude` و `/login`.)
 
-## ۵. تنظیمات و اجرا
+## ۵. شناسه‌ها و اجرا
+در خصوصی بات و در گروه `/whoami` بفرست (بات باید اجرا باشد: `sudo systemctl enable --now hamdel`). سپس:
 ```
-sudo nano /opt/hamdel/env      # توکن بات بله، کلیدهای Cloudflare، OWNER_ID، GROUP_CHAT_ID
-sudo systemctl enable --now hamdel
-journalctl -u hamdel -f        # لاگ (محتوای پیام‌ها ثبت نمی‌شود)
-curl localhost:8080/health
+sudo bash /opt/hamdel/app/deploy/set-env.sh OWNER_ID
+sudo bash /opt/hamdel/app/deploy/set-env.sh GROUP_CHAT_ID
+curl -s localhost:8080/health
 ```
-`OWNER_ID` و `GROUP_CHAT_ID` را قبل از آن با دستور `/whoami` در خصوصی و داخل گروه بگیر (بات باید یک‌بار اجرا شده باشد؛ می‌توانی env را اول خالی از این دو بگذاری).
+در پایان توکن GitHub را در تنظیمات حساب Delete کن.
 
 ## ۶. آزمایش
 یک ویس کوتاه محاوره‌ای در گروه بفرست، ۲ دقیقه صبر کن، گزارش باید در خصوصی بیاید.
