@@ -1,8 +1,8 @@
 {
- "time_utc": "2026-10-26 13:55:41",
- "state": "heartbeat",
- "target_sha": "",
- "message": "",
+ "time_utc": "2026-10-26 13:55:44",
+ "state": "rejected",
+ "target_sha": "dc90104d8340f6a36fabad285801b795d53fae4d",
+ "message": "tests failed on the server",
  "installed_sha": "3a84654c569295a4297fc6d2b7513a700bba64cc",
  "health": {
   "service": "hamdel-claude-bot",
@@ -32,5 +32,7 @@
   "2026-10-26 13:52:23,180 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot"
  ],
- "updater_log": []
+ "updater_log": [
+  "tests failed for dc90104d8340f6a36fabad285801b795d53fae4d; keeping current version"
+ ]
 }
