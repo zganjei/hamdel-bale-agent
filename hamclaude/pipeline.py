@@ -139,6 +139,8 @@ class Pipeline:
         self.store.set_report(rid, status="done"); return True
 
     def answer_owner(self, question):
+        if not self.store.recent_reports():
+            self.tg.send_message(int(self.cfg.owner_id), "هنوز گزارشی ندارم. ویس یا پیام همدل را بفرست و بعد /report بزن."); return
         try: reply = self.analyst.answer(question, self.store.recent_reports())
         except Exception: reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بپرس."
         self.tg.send_message(int(self.cfg.owner_id), reply)

@@ -57,6 +57,8 @@ class Store:
             c.execute("UPDATE items SET report_id=? WHERE report_id IS NULL", (rid,)); c.commit()
         return rid
 
+    def pending_count(self): return self.q("SELECT count(*) n FROM items WHERE report_id IS NULL", one=True)["n"]
+
     def next_report(self):
         return self.q("SELECT * FROM reports WHERE status IN ('pending','delivering') ORDER BY id LIMIT 1", one=True)
     def items(self, rid): return [dict(r) for r in self.q("SELECT * FROM items WHERE report_id=? ORDER BY date,msg_id", (rid,))]

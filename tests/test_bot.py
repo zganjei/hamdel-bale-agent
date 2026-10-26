@@ -271,3 +271,13 @@ class OpenGroupTests(unittest.TestCase):
             app = main.App(cfg, Store(d), FakeTG(), None)
             self.assertTrue(app.real_author({"from": {"id": 1, "username": "anyone"}}))
             self.assertFalse(app.real_author({"from": {"id": 2, "is_bot": True}}))
+
+
+class ReportCommandTests(IntakeTests if 'IntakeTests' in globals() else unittest.TestCase):
+    def test_report_command_flushes_and_empty_answer_is_fixed(self):
+        self.app.handle({"update_id": 1, "message": {"message_id": 900, "date": int(time.time()), "chat": {"id": OWNER, "type": "private"},
+                         "from": {"id": OWNER}, "text": "plain note forwarded", "forward_date": 1}})
+        self.assertEqual(self.store.pending_count(), 1)
+        self.app.handle({"update_id": 2, "message": {"message_id": 901, "date": int(time.time()), "chat": {"id": OWNER, "type": "private"},
+                         "from": {"id": OWNER}, "text": "/report"}})
+        self.assertEqual(self.store.get("flush"), "1"); self.assertEqual(self.tg.sent[-1][0], "msg")

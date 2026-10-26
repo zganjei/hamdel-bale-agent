@@ -52,6 +52,11 @@ class App:
             if it: self.store.add_item(it); STATE["group_items"] += 1
             return
         if chat.get("type") == "private" and self.cfg.owner_id and str(uid) == self.cfg.owner_id:
+            if text.split("@")[0].split(" ")[0] == "/report" or text in ("گزارش", "گزارش بده"):
+                n = self.store.pending_count()
+                if n: self.store.put("flush", "1"); self.tg.send_message(cid, f"{n} پیام جمع شده؛ گزارش را آماده می‌کنم. چند دقیقه صبر کن.")
+                else: self.tg.send_message(cid, "پیام جدیدی برای گزارش نیست.")
+                return
             forwarded = bool(m.get("forward_date") or m.get("forward_from") or m.get("forward_origin"))
             it = item_from_message(m, "private")
             if it and (it["kind"] != "text" or forwarded):
@@ -60,7 +65,7 @@ class App:
                 self.questions.put(it["text"])
             elif text.split(" ")[0] in ("/start", "/help"):
                 self.tg.send_message(cid, "سلام. گزارش‌های همدل (متن، ویس، عکس، فیلم) را از گروه می‌گیرم و خلاصه و دسته‌بندی‌شده با عکس و فیلم مرتبط همین‌جا می‌فرستم. "
-                                       "ویس، عکس یا پیام فورواردشده را مستقیم هم می‌توانی برایم بفرستی. هر متن ساده‌ای بنویسی، دربارهٔ گزارش‌های اخیر جواب می‌دهم.")
+                                       "ویس، عکس یا پیام فورواردشده را برایم بفرست؛ هر وقت /report بزنی گزارش را می‌سازم، یا اگر نیم ساعت چیز تازه‌ای نیاید خودم می‌سازم. هر متن ساده‌ای بنویسی، دربارهٔ گزارش‌های اخیر جواب می‌دهم.")
 
     def dispatch(self, u, attempts=3, pause=1):
         """A failing update is retried briefly, then skipped so later updates are never blocked."""
@@ -87,7 +92,9 @@ class App:
     def worker(self):
         while True:
             try:
-                self.store.close_ready(self.cfg.quiet_seconds)
+                flush = self.store.get("flush") == "1"
+                if flush: self.store.put("flush", "0")
+                self.store.close_ready(0 if flush else self.cfg.quiet_seconds)
                 if not self.pipe.process_next(): time.sleep(2)
             except Exception: logging.warning("Worker retrying; no content logged"); time.sleep(5)
 

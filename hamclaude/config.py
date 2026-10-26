@@ -27,7 +27,7 @@ class Config:
     owner_id: str = ""          # Telegram user id of the owner (reports are delivered here, in private)
     group_chat_id: str = ""     # Telegram group that holds the reports
     report_sender: str = ""   # optional: only accept this Telegram @username in the group (empty = any member)
-    quiet_seconds: int = 120    # a report closes after this much silence
+    quiet_seconds: int = 1800   # a report closes after this much silence (or at once on /report)
     max_images: int = 10
     max_file_bytes: int = 20 * 1024 * 1024
     port: int = 8080
@@ -46,5 +46,5 @@ def load(env=None):
         asr_model=g("ASR_MODEL", "@cf/openai/whisper-large-v3-turbo"),
         data_dir=g("DATA_DIR", "data"), owner_id=g("OWNER_ID"), group_chat_id=g("GROUP_CHAT_ID"),
         report_sender=g("REPORT_SENDER", "").lstrip("@").casefold(),
-        quiet_seconds=int(g("QUIET_SECONDS", "120")), max_images=int(g("MAX_IMAGES", "10")),
+        quiet_seconds=int(g("QUIET_SECONDS", "1800")), max_images=int(g("MAX_IMAGES", "10")),
         port=int(g("PORT", "8080")), categories=cats)

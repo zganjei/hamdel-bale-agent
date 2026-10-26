@@ -27,7 +27,7 @@ CLAUDE_CODE_MODEL=sonnet
 GEMINI_API_KEY=$GEMINI
 GEMINI_MODEL=gemini-2.5-flash
 REPORT_SENDER=
-QUIET_SECONDS=120
+QUIET_SECONDS=1800
 DATA_DIR=/opt/hamdel/data
 ENV
 chmod 600 /opt/hamdel/env; chown -R hamdel:hamdel /opt/hamdel
