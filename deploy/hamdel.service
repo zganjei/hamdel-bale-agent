@@ -1,0 +1,20 @@
+[Unit]
+Description=Hamdel Bale report bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hamdel
+WorkingDirectory=/opt/hamdel/app
+EnvironmentFile=/opt/hamdel/env
+Environment=PATH=/home/hamdel/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CLAUDE_BIN=/home/hamdel/.local/bin/claude
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/hamdel /home/hamdel
+
+[Install]
+WantedBy=multi-user.target

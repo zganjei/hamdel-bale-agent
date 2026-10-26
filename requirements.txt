@@ -1,0 +1,1 @@
+# Standard library only. Requires Python 3.12 and ffmpeg/ffprobe on the host.
