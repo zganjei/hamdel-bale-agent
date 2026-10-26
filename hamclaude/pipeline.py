@@ -139,8 +139,13 @@ class Pipeline:
         self.store.set_report(rid, status="done"); return True
 
     def answer_owner(self, question):
-        if not self.store.recent_reports():
-            self.tg.send_message(int(self.cfg.owner_id), "هنوز گزارشی ندارم. ویس یا پیام همدل را بفرست و بعد /report بزن."); return
-        try: reply = self.analyst.answer(question, self.store.recent_reports())
-        except Exception: reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بپرس."
-        self.tg.send_message(int(self.cfg.owner_id), reply)
+        owner, pending, reports = int(self.cfg.owner_id), self.store.pending_count(), self.store.recent_reports()
+        if not reports and not pending:
+            self.tg.send_message(owner, "هنوز چیزی از همدل برایم نفرستاده‌ای. ویس، عکس یا پیام را بفرست؛ خودم گزارش را می‌سازم."); return
+        try:
+            if hasattr(self.analyst, "decide"): d = self.analyst.decide(question, reports, pending)
+            else: d = {"action": "reply", "reply": self.analyst.answer(question, reports)}
+        except Exception: d = {"action": "reply", "reply": "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بنویس."}
+        if d["action"] == "report_now" and pending:
+            self.store.put("flush", "1"); d["reply"] = d["reply"] or "گزارش را آماده می‌کنم؛ چند دقیقه صبر کن."
+        self.tg.send_message(owner, d["reply"] or "پاسخی دریافت نشد.")

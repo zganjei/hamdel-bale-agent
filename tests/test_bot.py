@@ -281,3 +281,14 @@ class ReportCommandTests(IntakeTests if 'IntakeTests' in globals() else unittest
         self.app.handle({"update_id": 2, "message": {"message_id": 901, "date": int(time.time()), "chat": {"id": OWNER, "type": "private"},
                          "from": {"id": OWNER}, "text": "/report"}})
         self.assertEqual(self.store.get("flush"), "1"); self.assertEqual(self.tg.sent[-1][0], "msg")
+
+
+class AgentDecisionTests(unittest.TestCase):
+    def test_free_text_report_request_flushes_without_commands(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(data_dir=d, owner_id=str(OWNER), anthropic_key="k"); st = Store(d); tg = FakeTG()
+            st.add_item({"chat": OWNER, "msg_id": 1, "date": 1, "origin": "private", "kind": "text", "file_id": "", "filename": "", "size": 0, "duration": 0, "text": "x"})
+            class A:
+                def decide(self, q, reports, pending): return {"action": "report_now", "reply": ""}
+            Pipeline(cfg, st, tg, FakeMedia(), A()).answer_owner("خب دیگه گزارش بده")
+            self.assertEqual(st.get("flush"), "1"); self.assertTrue(tg.sent[-1][2])
