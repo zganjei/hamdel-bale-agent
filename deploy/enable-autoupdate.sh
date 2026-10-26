@@ -5,12 +5,13 @@ set -euo pipefail
 [ -n "${GH:-}" ] || { echo "export GH first"; exit 1; }
 [ -n "${WEBHOOK_SECRET:-}" ] || { echo "export WEBHOOK_SECRET first"; exit 1; }
 umask 077; printf '%s' "$GH" > /opt/hamdel/gh-token; chmod 600 /opt/hamdel/gh-token
+curl -fsSL -H "Authorization: Bearer $GH" -H "Accept: application/vnd.github.raw" "https://api.github.com/repos/zganjei/hamdel-bale-agent/contents/deploy/autoupdate.sh?ref=hamdel-claude-bot" -o /opt/hamdel/autoupdate.sh
 cat > /etc/systemd/system/hamdel-update.service <<'U'
 [Unit]
 Description=Update Hamdel bot from GitHub
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /opt/hamdel/app/deploy/autoupdate.sh
+ExecStart=/bin/bash /opt/hamdel/autoupdate.sh
 U
 cat > /etc/systemd/system/hamdel-update.timer <<'U'
 [Unit]
