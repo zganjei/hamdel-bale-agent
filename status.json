@@ -1,16 +1,16 @@
 {
- "time_utc": "2026-10-27 17:38:38",
- "state": "heartbeat",
- "target_sha": "",
- "message": "",
- "installed_sha": "63cdcf979457c576791d0542c58482382ced317c",
+ "time_utc": "2026-10-27 17:57:19",
+ "state": "deployed",
+ "target_sha": "da0badda43a2d201c2bbe3f01737ced15f125f4f",
+ "message": "Pass the replied-to message text to the agent",
+ "installed_sha": "da0badda43a2d201c2bbe3f01737ced15f125f4f",
  "health": {
   "service": "hamdel-claude-bot",
-  "release": "63cdcf979457c576791d0542c58482382ced317c",
-  "state": "running",
-  "last_poll": 1793122703,
-  "updates": 80,
-  "group_items": 53,
+  "release": "da0badda43a2d201c2bbe3f01737ced15f125f4f",
+  "state": "starting",
+  "last_poll": 0,
+  "updates": 0,
+  "group_items": 0,
   "ignored_group": 0,
   "private_items": 0,
   "handler_errors": 0,
@@ -18,7 +18,6 @@
   "last_error": "none"
  },
  "bot_log": [
-  "2026-10-26 13:44:42,488 ASR failed: TimeoutError: The read operation timed out",
   "2026-10-26 13:46:12,552 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:49:09,986 ASR failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
   "2026-10-26 13:50:05,115 Telegram identity verified: hamdel_reporter_bot",
@@ -32,7 +31,8 @@
   "2026-10-26 14:21:10,837 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 14:36:37,654 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 20:47:42,216 Telegram identity verified: hamdel_reporter_bot",
-  "2026-10-27 03:40:32,896 Telegram identity verified: hamdel_reporter_bot"
+  "2026-10-27 03:40:32,896 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-27 17:57:09,322 Telegram identity verified: hamdel_reporter_bot"
  ],
  "updater_log": []
 }
