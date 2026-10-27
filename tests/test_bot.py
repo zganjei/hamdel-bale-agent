@@ -73,6 +73,8 @@ class IntakeTests(Base):
         mk = lambda uid, t, chat=-777: {"update_id": 1, "message": {"message_id": 1, "chat": {"id": chat, "type": "supergroup"}, "from": {"id": uid, "username": "u"}, "text": t}}
         self.app.dispatch(mk(OWNER, "@hamdel_reporter_bot یک عکس بساز"))
         self.assertEqual(self.app.questions.get_nowait(), "یک عکس بساز"); self.assertEqual(self.pipe.dest(), -777)
+        u = mk(OWNER, "@hamdel_reporter_bot اینو بساز"); u["message"]["reply_to_message"] = {"text": "پرامپت پوستر", "from": {"is_bot": True, "username": "hamdel_reporter_bot"}}
+        self.app.dispatch(u); self.assertIn("پرامپت پوستر", self.app.questions.get_nowait())
         self.app.dispatch(mk(9, "@hamdel_reporter_bot سلام")); self.app.dispatch(mk(OWNER, "بدون منشن"))
         self.assertTrue(self.app.questions.empty())
     def test_forwarded_copy_by_other_sender_is_not_real_author(self):
