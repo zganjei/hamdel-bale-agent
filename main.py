@@ -61,9 +61,10 @@ class App:
         if chat.get("type") in ("group", "supergroup"):
             if self.cfg.owner_id and str(uid) == self.cfg.owner_id and self.addressed(m, text):
                 q = re.sub(r"@\w*bot\b", "", text, flags=re.I).strip() or "سلام"
-                self.store.put("reply_chat", str(cid)); self.questions.put(q)     # the answer goes where the owner asked
+                self.store.put("group_chat", str(cid)); self.store.put("reply_chat", str(cid)); self.questions.put(q)     # the answer goes where the owner asked
                 return
-            if not self.cfg.group_chat_id or str(cid) != self.cfg.group_chat_id: return
+            bound = self.cfg.group_chat_id or self.store.get("group_chat", "")     # the group where the owner called the bot becomes the report group
+            if not bound or str(cid) != bound: return
             if not self.real_author(m): STATE["ignored_group"] += 1; return
             it = item_from_message(m, "group")
             if it: self.store.add_item(it); STATE["group_items"] += 1
@@ -87,7 +88,7 @@ class App:
             if it and (it["kind"] != "text" or forwarded):
                 self.store.add_item(it); STATE["private_items"] += 1
             elif it and not text.startswith("/"):
-                self.store.put("reply_chat", str(cid)); self.questions.put(it["text"])
+                self.store.put("owner_chat", str(cid)); self.store.put("reply_chat", str(cid)); self.questions.put(it["text"])
             elif text.split(" ")[0] in ("/start", "/help"):
                 self.tg.send_message(cid, "سلام. گزارش‌های همدل (متن، ویس، عکس، فیلم) را از گروه می‌گیرم و خلاصه و دسته‌بندی‌شده با عکس و فیلم مرتبط همین‌جا می‌فرستم. "
                                        "ویس، عکس یا پیام فورواردشده را برایم بفرست؛ هر وقت بنویسی «گزارش بده» می‌سازم، یا اگر نیم ساعت چیز تازه‌ای نیاید خودم می‌سازم. هر چیزی بپرسی یا بخواهی، به زبان خودت بنویس.")

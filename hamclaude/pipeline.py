@@ -176,7 +176,7 @@ class Pipeline:
         try: reply = self.agent.turn(question)
         except Exception as e:
             logging.warning("Agent turn failed: %s", reason(e)); reply = "الان نتوانستم جواب بگیرم؛ کمی بعد دوباره بنویس."
-        self.tg.send_message(owner, reply)
+        self.tg.send_message(self.dest(), reply)
         self.pump_outbox()
 
     def pump_outbox(self):

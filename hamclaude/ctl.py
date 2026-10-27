@@ -96,6 +96,12 @@ def main(argv, store=None, spawn=None):
         if not r or not r["path"] or not Path(r["path"]).exists(): return out({"error": "no file for this item"})
         st.queue_file(KINDS.get(r["kind"], "document"), r["path"], " ".join(args[1:]) or f"آیتم {args[0]}")
         out({"queued": int(args[0])})
+    elif cmd == "to":
+        if args[:1] == ["group"]:
+            g = st.get("group_chat", "")
+            if not g: return out({"error": "no group known yet; the owner must mention the bot once inside the group"})
+            st.put("reply_chat", g); out({"ok": "the reply and queued files now go to the group"})
+        else: st.put("reply_chat", st.get("owner_chat", "")); out({"ok": "the reply goes to the owner's private chat"})
     elif cmd == "image":
         cx = find_codex()
         if not cx or subprocess.run([cx, "login", "status"], capture_output=True, timeout=60).returncode != 0:
@@ -110,6 +116,6 @@ def main(argv, store=None, spawn=None):
         if n: st.put("flush", "1")
         out({"will_build_report_from_items": n})
     else:
-        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "image DESCRIPTION", "codex-login"]})
+        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "to group|here", "image DESCRIPTION", "codex-login"]})
 
 if __name__ == "__main__": main(sys.argv[1:])
