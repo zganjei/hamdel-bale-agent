@@ -1,16 +1,16 @@
 {
- "time_utc": "2026-10-27 03:40:43",
- "state": "deployed",
- "target_sha": "63cdcf979457c576791d0542c58482382ced317c",
- "message": "Bind group when owner calls the bot there; agent can route replies to the group",
+ "time_utc": "2026-10-27 04:01:43",
+ "state": "heartbeat",
+ "target_sha": "",
+ "message": "",
  "installed_sha": "63cdcf979457c576791d0542c58482382ced317c",
  "health": {
   "service": "hamdel-claude-bot",
   "release": "63cdcf979457c576791d0542c58482382ced317c",
-  "state": "starting",
-  "last_poll": 0,
-  "updates": 0,
-  "group_items": 0,
+  "state": "running",
+  "last_poll": 1793073703,
+  "updates": 27,
+  "group_items": 11,
   "ignored_group": 0,
   "private_items": 0,
   "handler_errors": 0,
@@ -34,8 +34,5 @@
   "2026-10-26 20:47:42,216 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-27 03:40:32,896 Telegram identity verified: hamdel_reporter_bot"
  ],
- "updater_log": [
-  "hamdel-update.service: Failed with result 'exit-code'.",
-  "Failed to start hamdel-update.service - Update Hamdel bot from GitHub."
- ]
+ "updater_log": []
 }
