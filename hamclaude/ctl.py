@@ -38,7 +38,7 @@ def run_image(st, prompt, runner=subprocess.run, refs=()):
     if not codex: return st.queue_text("نصب Codex انجام نشد؛ تصویرسازی ممکن نیست.")
     gen = Path.home() / ".codex" / "generated_images"; start = time.time() - 2
     work = Path(os.environ.get("DATA_DIR", "data")).resolve() / "agent" / "img"; work.mkdir(parents=True, exist_ok=True)
-    try: res = runner([codex, "exec", "--skip-git-repo-check", *[a for r in refs for a in ("-i", r)], "$imagegen " + prompt[:1500]], cwd=str(work), capture_output=True, text=True, timeout=900)
+    try: res = runner([codex, "exec", "--skip-git-repo-check", *[a for r in refs for a in ("-i", r)], "--", "$imagegen " + prompt[:1500]], cwd=str(work), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=900)
     except subprocess.TimeoutExpired: return st.queue_text("ساخت تصویر بیش از حد طول کشید.")
     files = sorted((p for p in gen.rglob("*") if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and p.stat().st_mtime >= start), key=lambda p: p.stat().st_mtime) if gen.exists() else []
     if not files:
