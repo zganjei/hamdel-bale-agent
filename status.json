@@ -1,24 +1,23 @@
 {
- "time_utc": "2026-10-29 12:59:39",
- "state": "heartbeat",
- "target_sha": "",
- "message": "",
- "installed_sha": "f6f20cd3e097cdeccaf6fec53dd3f699ee30a88d",
+ "time_utc": "2026-10-29 13:00:32",
+ "state": "deployed",
+ "target_sha": "b99140b5d41c13c02d7eecec306c364a83d7ad8e",
+ "message": "Retrigger deploy",
+ "installed_sha": "b99140b5d41c13c02d7eecec306c364a83d7ad8e",
  "health": {
   "service": "hamdel-claude-bot",
-  "release": "f6f20cd3e097cdeccaf6fec53dd3f699ee30a88d",
-  "state": "running",
-  "last_poll": 1793278779,
-  "updates": 9,
+  "release": "b99140b5d41c13c02d7eecec306c364a83d7ad8e",
+  "state": "starting",
+  "last_poll": 0,
+  "updates": 0,
   "group_items": 0,
   "ignored_group": 0,
-  "private_items": 1,
+  "private_items": 0,
   "handler_errors": 0,
   "skipped_updates": 0,
   "last_error": "none"
  },
  "bot_log": [
-  "2026-10-26 13:50:05,115 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:52:23,180 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 14:03:15,945 Telegram identity verified: hamdel_reporter_bot",
@@ -32,7 +31,8 @@
   "2026-10-27 03:40:32,896 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-27 17:57:09,322 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-29 02:09:08,197 Telegram identity verified: hamdel_reporter_bot",
-  "2026-10-29 02:15:21,927 Telegram identity verified: hamdel_reporter_bot"
+  "2026-10-29 02:15:21,927 Telegram identity verified: hamdel_reporter_bot",
+  "2026-10-29 13:00:22,315 Telegram identity verified: hamdel_reporter_bot"
  ],
  "updater_log": []
 }
