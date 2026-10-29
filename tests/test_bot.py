@@ -81,6 +81,11 @@ class IntakeTests(Base):
         u = photo(7, chat=OWNER, uid=OWNER); u["message"]["chat"]["type"] = "private"; u["message"]["caption"] = "قالب پوستر را مثل این کن"
         self.app.dispatch(u); q = self.app.questions.get_nowait()
         self.assertIn("قالب پوستر", q); self.assertIn("agent/refs/7.jpg", q); self.assertEqual(main.STATE["private_items"], 0)
+    def test_standing_rules_persist_and_reach_agent_prompt(self):
+        from hamclaude import ctl
+        ctl.main(["rule", "add", "۷م یعنی ۷ میلیون تومان"], store=self.store)
+        ctl.main(["rule", "add", "اشتباهی"], store=self.store); ctl.main(["rule", "remove", "2"], store=self.store)
+        self.assertEqual(Store(self.tmp.name).rules(), ["۷م یعنی ۷ میلیون تومان"]); self.assertIn("1. ۷م", self.store.rules_text())
     def test_forwarded_copy_by_other_sender_is_not_real_author(self):
         u = voice(5, user="someone", uid=9); u["message"]["forward_from"] = {"username": "motahari58", "id": 7}
         self.app.dispatch(u); self.assertEqual(main.STATE["group_items"], 0)

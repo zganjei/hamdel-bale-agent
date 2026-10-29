@@ -37,6 +37,13 @@ class Store:
 
     def get(self, key, default=""):
         r = self.q("SELECT value FROM meta WHERE key=?", (key,), one=True); return r[0] if r else default
+    def rules(self):
+        try: r = json.loads(self.get("rules", "[]")); return [str(x) for x in r][:50]
+        except ValueError: return []
+    def set_rules(self, rules): self.put("rules", json.dumps([str(x)[:400] for x in rules][:50], ensure_ascii=False))
+    def rules_text(self):
+        """Standing instructions from the owner, shown to the agent every turn and to the report builder."""
+        return "\n".join(f"{i}. {r}" for i, r in enumerate(self.rules(), 1))
     def put(self, key, value): self.q("INSERT OR REPLACE INTO meta VALUES(?,?)", (key, str(value)), write=True)
 
     def know_sender(self, username, sid): self.q("INSERT OR IGNORE INTO identities VALUES(?,?)", (username, sid), write=True)

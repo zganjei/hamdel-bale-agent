@@ -44,7 +44,9 @@ class ClaudeCodeAnalyst:
                 if it.get("raw_asr"): body += ("\n" if body else "") + "متن خام تشخیص گفتار: " + it["raw_asr"]
                 lines.append(f"[آیتم {it['id']} | {it['kind']} | {it['time']}]\n{body}" +
                              (f"\nتصویرها (با ابزار Read ببین): {', '.join(names)}" if names else ""))
-            (work / "report.txt").write_text("\n\n".join(lines), encoding="utf-8")
+            rules = getattr(self, "rules", lambda: "")()
+            head = f"[قاعده‌های ثابت مدیر؛ رعایت کن، مثلاً در تعبیر اعداد و اصطلاحات]\n{rules}\n\n" if rules else ""
+            (work / "report.txt").write_text(head + "\n\n".join(lines), encoding="utf-8")
             data = self._claude(work, "گزارش در فایل report.txt است. آن را بخوان، تصویرهای نام‌برده را ببین و گزارش ساختاریافته را تحویل بده.",
                                 SYSTEM, schema(self.cfg.categories))
         out = data.get("structured_output")

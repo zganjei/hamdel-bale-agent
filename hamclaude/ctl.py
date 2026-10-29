@@ -96,6 +96,11 @@ def main(argv, store=None, spawn=None):
         if not r or not r["path"] or not Path(r["path"]).exists(): return out({"error": "no file for this item"})
         st.queue_file(KINDS.get(r["kind"], "document"), r["path"], " ".join(args[1:]) or f"آیتم {args[0]}")
         out({"queued": int(args[0])})
+    elif cmd == "rule":
+        rules, sub = st.rules(), (args[:1] or ["list"])[0]
+        if sub == "add" and len(args) > 1: rules.append(" ".join(args[1:])); st.set_rules(rules)
+        elif sub == "remove" and len(args) > 1 and args[1].isdigit() and 0 < int(args[1]) <= len(rules): rules.pop(int(args[1]) - 1); st.set_rules(rules)
+        out({"rules": st.rules()})
     elif cmd == "to":
         if args[:1] == ["group"]:
             g = st.get("group_chat", "")
@@ -123,6 +128,6 @@ def main(argv, store=None, spawn=None):
         if n: st.put("flush", "1")
         out({"will_build_report_from_items": n})
     else:
-        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "to group|here", "image [--ref PATH] DESCRIPTION", "codex-login"]})
+        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "rule add TEXT|list|remove N", "to group|here", "image [--ref PATH] DESCRIPTION", "codex-login"]})
 
 if __name__ == "__main__": main(sys.argv[1:])

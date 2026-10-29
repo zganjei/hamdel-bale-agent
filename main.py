@@ -196,6 +196,7 @@ def build(cfg):
     store = Store(cfg.data_dir); tg = Telegram(cfg.bot_token)
     pipe = Pipeline(cfg, store, tg, Media(cfg), {"claude": Analyst, "cloudflare": CFAnalyst}.get(cfg.provider, ClaudeCodeAnalyst)(cfg),
                     agent=Agent(cfg, store) if cfg.provider == "claudecode" else None)
+    pipe.analyst.rules = store.rules_text      # the owner's standing rules also shape the report builder
     return App(cfg, store, tg, pipe)
 
 if __name__ == "__main__":
