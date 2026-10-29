@@ -77,6 +77,10 @@ class IntakeTests(Base):
         self.app.dispatch(u); self.assertIn("پرامپت پوستر", self.app.questions.get_nowait())
         self.app.dispatch(mk(9, "@hamdel_reporter_bot سلام")); self.app.dispatch(mk(OWNER, "بدون منشن"))
         self.assertTrue(self.app.questions.empty())
+    def test_owner_photo_with_caption_is_request_with_reference(self):
+        u = photo(7, chat=OWNER, uid=OWNER); u["message"]["chat"]["type"] = "private"; u["message"]["caption"] = "قالب پوستر را مثل این کن"
+        self.app.dispatch(u); q = self.app.questions.get_nowait()
+        self.assertIn("قالب پوستر", q); self.assertIn("agent/refs/7.jpg", q); self.assertEqual(main.STATE["private_items"], 0)
     def test_forwarded_copy_by_other_sender_is_not_real_author(self):
         u = voice(5, user="someone", uid=9); u["message"]["forward_from"] = {"username": "motahari58", "id": 7}
         self.app.dispatch(u); self.assertEqual(main.STATE["group_items"], 0)

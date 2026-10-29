@@ -32,13 +32,13 @@ def spawn_detached(args):
     subprocess.Popen([sys.executable, str(Path(__file__).resolve().parent.parent / "hamctl.py"), *args], start_new_session=True,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=os.environ.copy())
 
-def run_image(st, prompt, runner=subprocess.run):
+def run_image(st, prompt, runner=subprocess.run, refs=()):
     """Background job: make an image with Codex (ChatGPT subscription), then queue it for the owner."""
     codex = ensure_codex()
     if not codex: return st.queue_text("نصب Codex انجام نشد؛ تصویرسازی ممکن نیست.")
     gen = Path.home() / ".codex" / "generated_images"; start = time.time() - 2
     work = Path(os.environ.get("DATA_DIR", "data")).resolve() / "agent" / "img"; work.mkdir(parents=True, exist_ok=True)
-    try: res = runner([codex, "exec", "--skip-git-repo-check", "$imagegen " + prompt[:1500]], cwd=str(work), capture_output=True, text=True, timeout=900)
+    try: res = runner([codex, "exec", "--skip-git-repo-check", *[a for r in refs for a in ("-i", r)], "$imagegen " + prompt[:1500]], cwd=str(work), capture_output=True, text=True, timeout=900)
     except subprocess.TimeoutExpired: return st.queue_text("ساخت تصویر بیش از حد طول کشید.")
     files = sorted((p for p in gen.rglob("*") if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") and p.stat().st_mtime >= start), key=lambda p: p.stat().st_mtime) if gen.exists() else []
     if not files:
@@ -106,16 +106,23 @@ def main(argv, store=None, spawn=None):
         cx = find_codex()
         if not cx or subprocess.run([cx, "login", "status"], capture_output=True, timeout=60).returncode != 0:
             return out({"error": "ChatGPT is not connected yet. Run `codex-login` first (link and code go to the owner), then try again after the owner confirms."})
-        (spawn or spawn_detached)(["_image", " ".join(args)]); out({"started": "image is being made; it will arrive in the chat by itself in a few minutes"})
+        root = Path(os.environ.get("DATA_DIR", "data")).resolve(); refs, words = [], list(args)
+        while len(words) > 1 and words[0] == "--ref":
+            rp = Path(words[1]).resolve(); words = words[2:]
+            if root in rp.parents and rp.is_file(): refs.append(str(rp))
+        (spawn or spawn_detached)(["_image", *[x for r in refs for x in ("--ref", r)], " ".join(words)]); out({"started": "image is being made; it will arrive in the chat by itself in a few minutes"})
     elif cmd == "codex-login":
         (spawn or spawn_detached)(["_codex_login"]); out({"started": "the link and code are being sent to the owner"})
-    elif cmd == "_image": run_image(st, " ".join(args))
+    elif cmd == "_image":
+        refs, words = [], list(args)
+        while len(words) > 1 and words[0] == "--ref": refs.append(words[1]); words = words[2:]
+        run_image(st, " ".join(words), refs=refs)
     elif cmd == "_codex_login": run_codex_login(st)
     elif cmd == "report-now":
         n = st.pending_count()
         if n: st.put("flush", "1")
         out({"will_build_report_from_items": n})
     else:
-        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "to group|here", "image DESCRIPTION", "codex-login"]})
+        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "to group|here", "image [--ref PATH] DESCRIPTION", "codex-login"]})
 
 if __name__ == "__main__": main(sys.argv[1:])
