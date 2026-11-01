@@ -93,6 +93,12 @@ class IntakeTests(Base):
         orig = ctl.ensure_codex; ctl.ensure_codex = lambda: "codex"; self.addCleanup(setattr, ctl, "ensure_codex", orig)
         ctl.run_image(self.store, "پوستر", runner=runner, refs=["/d/a.jpg"])
         c = seen["cmd"]; self.assertEqual(c[c.index("-i") + 1], "/d/a.jpg"); self.assertEqual(c[c.index("--") + 1][:9], "$imagegen"); self.assertIsNotNone(seen["stdin"])
+    def test_pdf_command_queues_a_persian_pdf(self):
+        try: import reportlab, arabic_reshaper, bidi  # noqa
+        except ImportError: self.skipTest("pdf libraries not installed here; they are installed on first use")
+        from hamclaude import ctl
+        os.environ["DATA_DIR"] = self.tmp.name; ctl.main(["pdf", "عنوان", "# تیتر\\n- یک ۷ میلیون"], store=self.store)
+        f = self.store.take_outbox()[0]; self.assertEqual(f["kind"], "document"); self.assertTrue(Path(f["path"]).read_bytes().startswith(b"%PDF"))
     def test_forwarded_copy_by_other_sender_is_not_real_author(self):
         u = voice(5, user="someone", uid=9); u["message"]["forward_from"] = {"username": "motahari58", "id": 7}
         self.app.dispatch(u); self.assertEqual(main.STATE["group_items"], 0)

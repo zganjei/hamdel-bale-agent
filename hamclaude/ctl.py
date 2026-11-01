@@ -96,6 +96,15 @@ def main(argv, store=None, spawn=None):
         if not r or not r["path"] or not Path(r["path"]).exists(): return out({"error": "no file for this item"})
         st.queue_file(KINDS.get(r["kind"], "document"), r["path"], " ".join(args[1:]) or f"آیتم {args[0]}")
         out({"queued": int(args[0])})
+    elif cmd == "pdf":
+        title, body = (args[:1] or ["گزارش"])[0], " ".join(args[1:]).replace("\\n", "\n")
+        if not body.strip() and not sys.stdin.isatty(): body = sys.stdin.read()
+        if not body.strip(): return out({"error": "no text; usage: pdf TITLE TEXT (lines separated by newline; '# ' heading, '- ' bullet)"})
+        root = Path(os.environ.get("DATA_DIR", "data")).resolve(); dest = root / "generated" / f"{int(time.time())}.pdf"; dest.parent.mkdir(exist_ok=True)
+        try:
+            from . import pdfmaker; pdfmaker.build(dest, title, body[:60000], root)
+        except Exception as e: return out({"error": f"pdf failed: {type(e).__name__}"})
+        st.queue_file("document", dest, title[:200]); out({"queued_pdf": dest.name})
     elif cmd == "rule":
         rules, sub = st.rules(), (args[:1] or ["list"])[0]
         if sub == "add" and len(args) > 1: rules.append(" ".join(args[1:])); st.set_rules(rules)
@@ -128,6 +137,6 @@ def main(argv, store=None, spawn=None):
         if n: st.put("flush", "1")
         out({"will_build_report_from_items": n})
     else:
-        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "rule add TEXT|list|remove N", "to group|here", "image [--ref PATH] DESCRIPTION", "codex-login"]})
+        out({"commands": ["status", "reports [N]", "report ID", "item ID", "search TEXT", "send ITEM_ID [caption]", "report-now", "pdf TITLE TEXT", "rule add TEXT|list|remove N", "to group|here", "image [--ref PATH] DESCRIPTION", "codex-login"]})
 
 if __name__ == "__main__": main(sys.argv[1:])
