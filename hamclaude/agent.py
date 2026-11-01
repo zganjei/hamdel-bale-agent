@@ -2,7 +2,7 @@
 
 The agent can read the archive (database and media under DATA_DIR), search the web, and act only through `hamctl`
 (list/search reports, queue media for the owner, build a report now). It has no Telegram token and no way to message anyone else."""
-import hashlib, json, os, subprocess, sys, time, uuid
+import hashlib, logging, json, os, subprocess, sys, time, uuid
 from pathlib import Path
 from .cc_analyst import ENV_KEYS
 
@@ -72,4 +72,7 @@ class Agent:
         try: data = json.loads(res.stdout)
         except ValueError: raise RuntimeError("claude_bad_output") from None
         if res.returncode or data.get("is_error"): raise RuntimeError("claude_failed")
+        for d in (data.get("permission_denials") or [])[:5]:      # content-free: tool and the first words of the command only
+            ti = d.get("tool_input") or {}; cmd = str(ti.get("command") or ti.get("file_path") or "")
+            logging.warning("Agent permission denied: %s %s", d.get("tool_name"), " ".join(cmd.split()[:3])[:80])
         return data
