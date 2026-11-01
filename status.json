@@ -1,14 +1,14 @@
 {
- "time_utc": "2026-11-01 09:33:15",
- "state": "heartbeat",
- "target_sha": "",
- "message": "",
- "installed_sha": "094ad7b8e470bcd0507597d449b31d4d89cf3c59",
+ "time_utc": "2026-11-01 09:34:18",
+ "state": "deployed",
+ "target_sha": "c99759e116dc93bf6a732b3cdb82cab34ddb0454",
+ "message": "Retrigger deploy",
+ "installed_sha": "c99759e116dc93bf6a732b3cdb82cab34ddb0454",
  "health": {
   "service": "hamdel-claude-bot",
-  "release": "094ad7b8e470bcd0507597d449b31d4d89cf3c59",
-  "state": "running",
-  "last_poll": 1793525592,
+  "release": "c99759e116dc93bf6a732b3cdb82cab34ddb0454",
+  "state": "starting",
+  "last_poll": 0,
   "updates": 0,
   "group_items": 0,
   "ignored_group": 0,
@@ -18,11 +18,6 @@
   "last_error": "none"
  },
  "bot_log": [
-  "2026-10-26 14:08:04,112 Telegram identity verified: hamdel_reporter_bot",
-  "2026-10-26 14:09:23,032 ASR failed: TimeoutError: The read operation timed out",
-  "2026-10-26 14:15:03,351 ASR failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
-  "2026-10-26 14:17:01,050 ASR failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
-  "2026-10-26 14:21:10,837 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 14:36:37,654 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 20:47:42,216 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-27 03:40:32,896 Telegram identity verified: hamdel_reporter_bot",
@@ -32,9 +27,15 @@
   "2026-10-29 13:00:22,315 Telegram identity verified: hamdel_reporter_bot",
   "2026-11-01 07:53:32,996 Telegram identity verified: hamdel_reporter_bot",
   "2026-11-01 07:56:31,594 Telegram identity verified: hamdel_reporter_bot",
-  "2026-11-01 08:33:40,233 Telegram identity verified: hamdel_reporter_bot"
+  "2026-11-01 08:01:43,994 Agent permission denied: Bash cd /opt/hamdel/app &&",
+  "2026-11-01 08:15:03,187 Agent permission denied: Bash cd /opt/hamdel/app &&",
+  "2026-11-01 08:33:40,233 Telegram identity verified: hamdel_reporter_bot",
+  "2026-11-01 08:33:46,074 Agent probe: turns=2 denials=0 result={  \"rules\": [   \"گزارش خودکار نفرست؛ فقط وقتی مدیر صریحاً گزارش خواست (مثل «گزارش بده»، «جمع‌بندی کن»، «تمام شد») گزارش بساز و بفرست.\"  ] }",
+  "2026-11-01 09:34:07,695 Telegram identity verified: hamdel_reporter_bot",
+  "2026-11-01 09:34:14,735 Agent probe: turns=2 denials=0 result={  \"rules\": [   \"گزارش خودکار نفرست؛ فقط وقتی مدیر صریحاً گزارش خواست (مثل «گزارش بده»، «جمع‌بندی کن»، «تمام شد») گزارش بساز و بفرست.\"  ] }"
  ],
  "updater_log": [
+  "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units."
