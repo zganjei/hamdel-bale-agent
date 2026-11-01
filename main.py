@@ -208,5 +208,6 @@ if __name__ == "__main__":
     if missing: raise SystemExit("Missing environment variables: " + ", ".join(missing))
     app = build(cfg)
     rel = json.loads(Path("release.json").read_text()).get("commit", "local") if Path("release.json").exists() else "local"
+    if app.pipe.agent: threading.Thread(target=app.pipe.agent.probe, daemon=True).start()
     for target in (app.poll, app.worker, app.chatter): threading.Thread(target=target, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", cfg.port), health(rel, os.environ.get("GITHUB_WEBHOOK_SECRET", ""))).serve_forever()

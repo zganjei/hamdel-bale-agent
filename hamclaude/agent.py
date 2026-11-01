@@ -59,6 +59,13 @@ class Agent:
         if data.get("session_id"): self.store.put("agent_session", data["session_id"])
         return str(data.get("result", "")).strip() or "پاسخی دریافت نشد."
 
+    def probe(self):
+        """Startup self-test with a fixed prompt: can the agent run hamctl? Logs only its own probe result."""
+        try:
+            data = self._run("Use the Bash tool to run exactly: python3 " + self.ctl + " rule list   Then reply with only the raw output.")
+            logging.warning("Agent probe: turns=%s denials=%s result=%s", data.get("num_turns"), len(data.get("permission_denials") or []), str(data.get("result"))[:160].replace("\n", " "))
+        except Exception as e: logging.warning("Agent probe failed: %s", type(e).__name__)
+
     def _run(self, prompt, resume=None):
         cmd = [self.cfg.claude_bin, "-p", prompt, "--model", self.cfg.claude_code_model,
                "--append-system-prompt", SYSTEM.replace("{ctl}", self.ctl), "--output-format", "json",
