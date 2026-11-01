@@ -1,16 +1,16 @@
 {
- "time_utc": "2026-11-01 07:32:27",
- "state": "heartbeat",
- "target_sha": "",
- "message": "",
- "installed_sha": "b99140b5d41c13c02d7eecec306c364a83d7ad8e",
+ "time_utc": "2026-11-01 07:53:43",
+ "state": "deployed",
+ "target_sha": "876dc46de9cea536f157a8dd54852c5a0a30b1ad",
+ "message": "hamctl pdf: Persian PDF generation (bundled Vazirmatn font, libs installed on first use)",
+ "installed_sha": "876dc46de9cea536f157a8dd54852c5a0a30b1ad",
  "health": {
   "service": "hamdel-claude-bot",
-  "release": "b99140b5d41c13c02d7eecec306c364a83d7ad8e",
-  "state": "running",
-  "last_poll": 1793518331,
-  "updates": 19,
-  "group_items": 15,
+  "release": "876dc46de9cea536f157a8dd54852c5a0a30b1ad",
+  "state": "starting",
+  "last_poll": 0,
+  "updates": 0,
+  "group_items": 0,
   "ignored_group": 0,
   "private_items": 0,
   "handler_errors": 0,
@@ -18,7 +18,6 @@
   "last_error": "none"
  },
  "bot_log": [
-  "2026-10-26 13:52:23,180 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 13:54:06,109 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 14:03:15,945 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-26 14:08:04,112 Telegram identity verified: hamdel_reporter_bot",
@@ -32,7 +31,10 @@
   "2026-10-27 17:57:09,322 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-29 02:09:08,197 Telegram identity verified: hamdel_reporter_bot",
   "2026-10-29 02:15:21,927 Telegram identity verified: hamdel_reporter_bot",
-  "2026-10-29 13:00:22,315 Telegram identity verified: hamdel_reporter_bot"
+  "2026-10-29 13:00:22,315 Telegram identity verified: hamdel_reporter_bot",
+  "2026-11-01 07:53:32,996 Telegram identity verified: hamdel_reporter_bot"
  ],
- "updater_log": []
+ "updater_log": [
+  "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units."
+ ]
 }
