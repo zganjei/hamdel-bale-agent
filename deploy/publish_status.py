@@ -6,7 +6,7 @@ import base64, json, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 D, REPO, SRC, BRANCH = Path("/opt/hamdel"), "zganjei/hamdel-bale-agent", "hamdel-claude-bot", "deploy-status"
-KEEP = ("fail", "error", "warn", "verified", "timeout", "http ")
+KEEP = ("fail", "error", "warn", "verified", "timeout", "http ", "agent ")
 
 def sh(*cmd):
     try: return subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout
