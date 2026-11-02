@@ -1,5 +1,5 @@
 {
- "time_utc": "2026-11-02 09:15:02",
+ "time_utc": "2026-11-02 09:45:07",
  "state": "heartbeat",
  "target_sha": "",
  "message": "",
@@ -8,7 +8,7 @@
   "service": "hamdel-claude-bot",
   "release": "6eed7b92b3ae4ab14ff68a74a056402e9d8618d0",
   "state": "running",
-  "last_poll": 1793610882,
+  "last_poll": 1793612707,
   "updates": 10,
   "group_items": 3,
   "ignored_group": 0,
@@ -35,7 +35,6 @@
   "2026-11-01 10:05:44,057 Agent permission denied: Bash python3 /opt/hamdel/app/hamctl.py pdf"
  ],
  "updater_log": [
-  "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
   "Warning: The unit file, source configuration file or drop-ins of hamdel.service changed on disk. Run 'systemctl daemon-reload' to reload units.",
